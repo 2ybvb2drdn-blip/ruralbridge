@@ -5,3 +5,6 @@ node_modules/
 .env.local
 dist/
 .vscode/
+
+# Cloudflare wrangler 本地状态
+.wrangler/

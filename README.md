@@ -4,6 +4,9 @@
 
 传智杯全国大学生 IT 技能大赛参赛作品 · 三人团队
 
+**在线演示地址：<https://ruralbridge.pages.dev>**
+评审测试账号：`demo` / `czb2026`（班主任）、`judge` / `czb2026`（学校心理教师）
+
 ---
 
 ## 一、项目介绍
@@ -191,6 +194,8 @@ netlify deploy --dir=web --prod
 > **安全约定**：前端永远不持有 API Key。线上环境所有大模型调用统一经服务端 `/api/ai/*` 网关转发。
 
 ### 4.5 评审测试账号
+
+线上演示地址：**<https://ruralbridge.pages.dev>**
 
 | 账号 | 密码 | 角色 |
 |---|---|---|

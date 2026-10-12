@@ -149,5 +149,56 @@ RB.engine = (function () {
     };
   }
 
-  return { assess, ruleScan, ragRetrieve, scoreQuestionnaire };
+  /* ---------- 线上通道：调用服务端 AI 网关（真实大模型 + RAG） ----------
+   * 失败时自动降级为本地确定性引擎，保证演示环境永不白屏。
+   * 服务端：functions/api/ai/assess.js
+   */
+  async function assessAsync(input) {
+    const fallback = () => {
+      const r = assess(input);
+      r.fallback = true;
+      r.model = r.model + '（本地兜底：服务端不可达）';
+      return r;
+    };
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const res = await fetch('/api/ai/assess', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          text: input.text || '',
+          answers: input.answers || {},
+          studentName: input.studentName || '',
+          theories: RB.THEORIES
+        })
+      });
+      clearTimeout(timer);
+      const data = await res.json();
+      if (!data || data.ok !== true) throw new Error((data && data.error) || ('HTTP ' + res.status));
+      const q = scoreQuestionnaire(input.answers || {});
+      const ids = data.theoryIds || [];
+      return {
+        level: data.level,
+        riskType: data.riskType,
+        evidence: data.evidence || [],
+        steps: data.steps || [],
+        talk: data.talk || [],
+        theories: RB.THEORIES.filter(t => ids.indexOf(t.id) !== -1),
+        ruleHits: data.ruleHits || [],
+        score: q.score,
+        dims: q.dims,
+        latencyMs: data.latencyMs,
+        model: data.model || '大模型（RAG 增强）',
+        engine: data.engine,
+        fallback: false
+      };
+    } catch (e) {
+      clearTimeout(timer);
+      return fallback();
+    }
+  }
+
+  return { assess, assessAsync, ruleScan, ragRetrieve, scoreQuestionnaire };
 })();

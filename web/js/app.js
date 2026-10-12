@@ -142,11 +142,11 @@
     switchTab('plan');
     if (plan) { renderPlan(s, plan, null); return; }
     // 非预置案例：现场跑一次引擎，生成结构化建议
-    $('#planBody').innerHTML = `<div class="loading"><div class="spinner"></div>正在调用 AI 评估引擎生成方案…</div>`;
-    setTimeout(() => {
-      const r = RB.engine.assess({ text:(s.tags || []).join(' '), answers:{} });
+    $('#planBody').innerHTML = `<div class="loading"><div class="spinner"></div>正在调用 AI 评估引擎（大模型 + RAG）生成方案…</div>`;
+    setTimeout(async () => {
+      const r = await RB.engine.assessAsync({ text:(s.tags || []).join(' '), answers:{}, studentName:s.name });
       renderPlan(s, null, r);
-    }, 420);
+    }, 120);
   }
 
   function renderPlan(s, plan, eng) {
@@ -222,8 +222,8 @@
       return;
     }
     $('#qResult').innerHTML = `<div class="loading"><div class="spinner"></div>AI 评估中（规则引擎硬筛查 → 语义推理 → RAG 理论检索）…</div>`;
-    setTimeout(() => {
-      const r = RB.engine.assess({ answers: state.answers, text:'' });
+    setTimeout(async () => {
+      const r = await RB.engine.assessAsync({ answers: state.answers, text:'', studentName:'问卷评估' });
       $('#qResult').innerHTML = resultCard(r, '问卷提交结果');
       window.scrollTo({ top: document.body.scrollHeight, behavior:'smooth' });
     }, 560);
@@ -267,10 +267,10 @@
       return;
     }
     const full = text + ' ' + state.tags.join(' ');
-    $('#recResult').innerHTML = `<div class="loading"><div class="spinner"></div>规则引擎硬筛查中…</div>`;
-    setTimeout(() => {
+    $('#recResult').innerHTML = `<div class="loading"><div class="spinner"></div>AI 分析中（规则引擎硬筛查 → 大模型语义推理 → RAG 理论检索）…</div>`;
+    setTimeout(async () => {
       const hits = RB.engine.ruleScan(full);
-      const r = RB.engine.assess({ text: full, answers:{} });
+      const r = await RB.engine.assessAsync({ text: full, answers:{}, studentName:'日常记录' });
       $('#recResult').innerHTML = `
         <div class="card" style="margin-top:16px">
           <h3>记录已入库 · AI 实时分析</h3>

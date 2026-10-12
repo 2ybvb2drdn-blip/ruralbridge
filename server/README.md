@@ -40,41 +40,26 @@ server/
 
 > 平台环境变量不会被前端代码读取，仅函数运行时可见。
 
-## Cloudflare Pages Functions 示例
+## Cloudflare Pages Functions 实际实现
 
-```js
-// server/api/ai-assess.js
-export async function onRequestPost({ request, env }) {
-  const body = await request.json();
+线上实际实现位于仓库根目录 `functions/api/ai/assess.js`（Cloudflare Pages Functions，随静态站一起部署）。
 
-  // 1) 规则引擎硬筛查（与前端同源，服务端复算，防止前端被篡改绕过）
-  const hits = ruleScan(body.text || '');
-  const hard = hits.find(h => h.hard);
-
-  // 2) 高危直接返回，不调用大模型
-  if (hard) {
-    return Response.json({ level: 'red', riskType: hard.type, hardTriggered: true, ruleHits: hits });
-  }
-
-  // 3) 语义推理（Key 仅存在于 env，不出服务端）
-  const r = await fetch(env.AI_API_BASE + '/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.AI_API_KEY },
-    body: JSON.stringify({
-      model: env.AI_MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: JSON.stringify(body) }
-      ],
-      response_format: { type: 'json_object' }
-    })
-  });
-  const out = await r.json();
-
-  // 4) RAG 检索 + 方案生成（略）
-  return Response.json(JSON.parse(out.choices[0].message.content));
-}
 ```
+浏览器 ──POST /api/ai/assess──▶ Pages Function ──▶ 大模型 API
+   │                                │
+   └─失败自动降级─┐           AI_API_KEY 存于加密环境变量
+                 ▼
+          浏览器内本地引擎（规则 + 理论库）
+```
+
+函数内部处理链路（与本文档示例一致，但顺序上规则优先且会短路）：
+
+1. **规则引擎硬筛查**（服务端复算，防止前端被篡改绕过）——命中高危则直接返回红色预警，**不调用大模型**；
+2. **RAG 理论检索**——按记录文本与作答召回 Top-K 理论条目；
+3. **大模型语义推理**——强制 JSON 输出（风险等级 / 类型 / 依据 / 分步建议 / 话术）；
+4. **结果回填理论来源**后返回前端。
+
+前端 `web/js/engine.js` 的 `assessAsync()` 调用该接口，**任何失败（未配密钥 / 超时 / 非 2xx / 解析失败）都会自动降级为浏览器内本地确定性引擎**，保证页面不白屏。
 
 ## 提示词要点（SYSTEM_PROMPT）
 
@@ -87,7 +72,7 @@ export async function onRequestPost({ request, env }) {
 
 | 情况 | 处理 |
 |---|---|
-| 大模型 API 超时 | 返回规则引擎结果 + 提示"语义分析暂不可用" |
+| 大模型 API 超时 / 不可达 | 服务端返回规则引擎结果 + 错误说明；前端捕获失败后自动降级为浏览器内本地引擎 |
 | 大模型额度耗尽 | 切换到备用 API（配置第二组环境变量） |
 | 向量库不可用 | 退化为关键词检索，方案仍可生成 |
 

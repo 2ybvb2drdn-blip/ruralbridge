@@ -20,11 +20,13 @@
 server/
 ├── api/
 │   ├── ai-assess.js      心理评估（规则引擎 + 大模型 + RAG）
-│   ├── record.js         日常记录入库
+│   ├── data-submit.js    学生数据提交（问卷 / 日常记录）
+│   ├── data-list.js      教师后台读取真实数据
+│   ├── data-reset.js     重置学生数据（测试用）
 │   └── export.js         报表导出
 ├── lib/
 │   ├── rules.js          规则引擎（与前端同源，服务端复算一遍做校验）
-│   └── rag.js            向量检索
+│   └── rag.js            关键词检索 / 向量检索
 └── README.md
 ```
 
@@ -61,6 +63,29 @@ server/
 
 前端 `web/js/engine.js` 的 `assessAsync()` 调用该接口，**任何失败（未配密钥 / 超时 / 非 2xx / 解析失败）都会自动降级为浏览器内本地确定性引擎**，保证页面不白屏。
 
+## 学生数据接口（真实数据链路）
+
+除 AI 网关外，仓库根目录 `functions/api/data/` 下还有三个接口，构成「学生提交 → 落库 → 教师读取」的链路：
+
+| 接口 | 方法 | 职责 |
+|---|---|---|
+| `/api/data/submit` | POST | 学生提交问卷 / 日常记录，写入数据库 |
+| `/api/data/list` | GET | 教师后台读取全部提交，按学生聚合出个体状态与班级统计 |
+| `/api/data/reset` | POST | 清空全部学生数据（测试用，前端带二次确认） |
+
+**存储选型：Cloudflare D1（SQLite，强一致）**，绑定名 `RURALBRIDGE_DB`，表 `submissions`（建表脚本见仓库根 `schema.sql`）。
+
+> 为什么不用 KV：KV 的 `list` 操作有最长 60 秒缓存，学生刚提交后教师后台可能看不到新数据；D1 强一致，提交后立即可读，更适合演示与测试。
+
+### 数据库初始化
+
+```bash
+# 创建 D1 数据库（返回 database_id，写入 wrangler.toml）
+wrangler d1 create ruralbridge-db
+# 建表
+wrangler d1 execute ruralbridge-db --remote --file=schema.sql
+```
+
 ## 提示词要点（SYSTEM_PROMPT）
 
 - 角色设定：乡村学校心理教师辅助工具；
@@ -75,5 +100,6 @@ server/
 | 大模型 API 超时 / 不可达 | 服务端返回规则引擎结果 + 错误说明；前端捕获失败后自动降级为浏览器内本地引擎 |
 | 大模型额度耗尽 | 切换到备用 API（配置第二组环境变量） |
 | 向量库不可用 | 退化为关键词检索，方案仍可生成 |
+| 数据接口不可达 | 学生端提交失败时仍展示本地评估结果，并提示未能同步 |
 
 > 演示站已内置上述降级逻辑的等效实现：即使完全无网络，规则引擎与理论库也能给出结构化结果。

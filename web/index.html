@@ -31,13 +31,22 @@
     <div class="err" id="loginErr"></div>
 
     <div class="hint">
-      <b>评审专用测试账号</b><br>
-      账号 <b>demo</b> / 密码 <b>czb2026</b>（班主任视角）<br>
-      账号 <b>judge</b> / 密码 <b>czb2026</b>（学校心理教师视角）
-      <div style="margin-top:8px"><button type="button" class="btn ghost sm" id="fillDemo">一键填入演示账号</button></div>
+      <b>测试账号（点击一键填入）</b>
+      <div id="fillBtns" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+        <button type="button" class="btn ghost sm" data-fill="banzhuren123">班主任</button>
+        <button type="button" class="btn ghost sm" data-fill="xinli123">心理教师</button>
+        <button type="button" class="btn ghost sm" data-fill="student1">学生1</button>
+        <button type="button" class="btn ghost sm" data-fill="student2">学生2</button>
+        <button type="button" class="btn ghost sm" data-fill="student3">学生3</button>
+        <button type="button" class="btn ghost sm" data-fill="student4">学生4</button>
+        <button type="button" class="btn ghost sm" data-fill="student5">学生5</button>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:#6b7684">
+        密码统一为 <b>12345678</b>。班主任 / 心理教师进入管理后台，学生进入问卷与记录页。
+      </div>
     </div>
     <div class="hint" style="background:#fff8f0;border-color:#f0dcc0">
-      本演示环境所有学生数据均为<b>脱敏模拟数据</b>，不含任何真实个人信息。
+      测试环境：本系统所有数据均由测试学生账号真实填写产生，教师后台实时读取。
     </div>
   </form>
 </div>
@@ -54,63 +63,63 @@
   </header>
 
   <nav class="tabs">
-    <button data-tab="dash" class="active">班级概览</button>
-    <button data-tab="students">学生名单</button>
-    <button data-tab="questionnaire">心理问卷</button>
-    <button data-tab="record">日常记录</button>
-    <button data-tab="class">班级报告</button>
-    <button data-tab="plan">干预方案</button>
+    <button data-tab="dash" data-role="staff" class="active">班级概览</button>
+    <button data-tab="students" data-role="staff">学生名单</button>
+    <button data-tab="class" data-role="staff">班级报告</button>
+    <button data-tab="plan" data-role="staff">干预方案</button>
+    <button data-tab="questionnaire" data-role="student">心理问卷</button>
+    <button data-tab="record" data-role="student">日常记录</button>
   </nav>
 
   <main class="wrap">
 
-    <!-- ---------- 班级概览 ---------- -->
+    <!-- ---------- 班级概览（教师） ---------- -->
     <section class="view active" id="view-dash">
-      <div class="section-title">班级心理晴雨表</div>
+      <div class="section-title">班级心理晴雨表（来自学生真实提交）</div>
       <div class="grid g4" id="metrics"></div>
 
       <div class="grid g2" style="margin-top:16px">
         <div class="card">
           <h3>风险分布</h3>
-          <div class="sub">按学生个体风险等级统计</div>
+          <div class="sub">按学生最近一次提交的风险等级统计</div>
           <div id="distBar"></div>
           <div class="trend-legend" id="distLegend" style="flex-wrap:wrap;gap:10px"></div>
         </div>
         <div class="card">
           <h3>班级信息</h3>
-          <div class="sub">数据来源：问卷 + 日常记录聚合</div>
+          <div class="sub">数据来源：学生问卷 + 日常记录实时聚合</div>
           <div id="classMeta"></div>
         </div>
       </div>
 
       <div class="card" style="margin-top:16px">
-        <h3>近 8 周风险趋势</h3>
-        <div class="sub">三条曲线分别为绿色 / 黄色 / 红色学生人数变化</div>
-        <div id="trend"></div>
+        <h3>最近提交</h3>
+        <div class="sub">按提交时间倒序，最新 6 条</div>
+        <div id="recent"></div>
       </div>
 
       <div class="section-title">AI 归纳的班级共性诱因</div>
       <div id="insights"></div>
     </section>
 
-    <!-- ---------- 学生名单 ---------- -->
+    <!-- ---------- 学生名单（教师） ---------- -->
     <section class="view" id="view-students">
-      <div class="section-title">学生名单与风险状态</div>
+      <div class="section-title">学生名单与风险状态（真实提交）</div>
       <div class="card" style="padding:6px 0;overflow-x:auto">
         <table class="tb">
           <thead><tr>
-            <th>编号</th><th>姓名</th><th>性别</th><th>留守</th><th>风险等级</th>
+            <th>账号</th><th>姓名</th><th>性别</th><th>留守</th><th>风险等级</th>
             <th>风险分</th><th>主要信号</th><th>最近更新</th><th>操作</th>
           </tr></thead>
           <tbody id="stuBody"></tbody>
         </table>
       </div>
       <div class="notice info" style="margin-top:12px">
-        <div>演示名单为节选 12 人（覆盖红/黄/绿三色），班级其余 30 人状态平稳。名单支持从 Excel 批量导入，线上版本由后端解析。</div>
+        <div>本表按学生最近一次提交实时聚合；学生每次提交问卷或日常记录后自动刷新。</div>
       </div>
     </section>
 
-    <!-- ---------- 心理问卷 ---------- -->
+    <!-- ---------- 学生端：心理问卷 ---------- -->
     <section class="view" id="view-questionnaire">
       <div class="section-title">轻量化心理问卷（约 3 分钟）</div>
       <div class="card">
@@ -125,28 +134,28 @@
       </div>
       <div id="qResult"></div>
       <div class="notice info" style="margin-top:14px">
-        <div>问卷第 9 题为高危筛查项，一旦命中将由<b>规则引擎硬触发</b>直接升级为红色等级，不依赖大模型判断，避免漏报。</div>
+        <div>问卷第 9 题为高危筛查项，一旦命中将由<b>规则引擎硬触发</b>直接升级为红色等级，不依赖大模型判断，避免漏报。提交后数据将实时同步至班主任与心理教师后台。</div>
       </div>
     </section>
 
-    <!-- ---------- 日常记录 ---------- -->
+    <!-- ---------- 学生端：日常记录 ---------- -->
     <section class="view" id="view-record">
       <div class="section-title">多模态日常记录</div>
       <div class="grid g2">
         <div class="card">
           <h3>快速记录</h3>
-          <div class="sub">支持文字速记与课堂行为标签，弱网下本地暂存、联网后自动同步</div>
-          <textarea class="rec" id="recText" placeholder="例如：今天课间小陈独自留在教室，手臂上有疑似划痕，问他只说没事……"></textarea>
-          <div class="sub" style="margin-top:12px">课堂行为标签（可多选）</div>
+          <div class="sub">支持文字速记与课堂行为标签，提交后实时同步至教师后台</div>
+          <textarea class="rec" id="recText" placeholder="例如：最近总睡不好，上课走神，也不太想和同学说话……"></textarea>
+          <div class="sub" style="margin-top:12px">状态标签（可多选）</div>
           <div class="chips" id="tagChips"></div>
           <div style="margin-top:14px"><button class="btn" id="btnSubmitR">提交记录并分析</button></div>
         </div>
         <div class="card">
           <h3>AI 引擎工作流</h3>
-          <div class="sub">每次记录提交后自动执行以下链路</div>
+          <div class="sub">每次提交后自动执行以下链路</div>
           <ol class="steps">
             <li><div class="st">规则引擎硬筛查</div><div class="sd">关键词/正则匹配高危信号，命中即硬触发红色预警，不依赖模型。</div></li>
-            <li><div class="st">特征归一化</div><div class="sd">结构化问卷数据与非结构化文本统一向量化，进入同一检索空间。</div></li>
+            <li><div class="st">特征归一化</div><div class="sd">结构化问卷数据与非结构化文本统一进入同一检索空间。</div></li>
             <li><div class="st">语义推理</div><div class="sd">大模型判定风险等级、风险类型，抽取关键证据句。</div></li>
             <li><div class="st">RAG 理论检索</div><div class="sd">按风险类型召回心理学理论条目，为建议提供依据。</div></li>
             <li><div class="st">方案生成与落库</div><div class="sd">生成分步干预建议并回填理论来源，刷新班级晴雨表。</div></li>
@@ -156,13 +165,13 @@
       <div id="recResult"></div>
     </section>
 
-    <!-- ---------- 班级报告 ---------- -->
+    <!-- ---------- 班级报告（教师） ---------- -->
     <section class="view" id="view-class">
       <div class="section-title">班级心理工作报告</div>
       <div id="classReport"></div>
     </section>
 
-    <!-- ---------- 干预方案 ---------- -->
+    <!-- ---------- 干预方案（教师） ---------- -->
     <section class="view" id="view-plan">
       <div class="section-title">个体干预方案</div>
       <div class="card" id="planBody">
@@ -174,8 +183,8 @@
 
   <footer class="site">
     <div class="disc">
-      乡育心桥 · RuralBridge — 传智杯全国大学生 IT 技能大赛参赛作品（演示环境）<br>
-      本系统所有数据均为脱敏模拟数据；AI 输出仅供参考，不替代专业心理诊断。
+      乡育心桥 · RuralBridge — 传智杯全国大学生 IT 技能大赛参赛作品（测试环境）<br>
+      本系统数据由测试学生账号真实填写产生；AI 输出仅供参考，不替代专业心理诊断。
     </div>
   </footer>
 </div>

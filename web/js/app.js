@@ -1,6 +1,12 @@
 /* ============================================================
  * 乡育心桥 · RuralBridge — 应用逻辑
  * 无框架依赖，纯原生 JS，便于弱网与低端机运行
+ *
+ * 角色分流：
+ *   学生（student）    → 心理问卷 / 日常记录 / 我的结果
+ *   班主任（teacher）  → 班级概览 / 学生名单 / 班级报告 / 干预方案
+ *   心理教师（counselor）→ 同班主任，可重置数据
+ * 所有后台数据均来自学生真实提交（/api/data/*），无内置模拟数据。
  * ============================================================ */
 (function () {
   'use strict';
@@ -10,72 +16,132 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
     ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 
-  const LV = { green:{txt:'绿色 · 状态良好', cls:'green'}, yellow:{txt:'黄色 · 需关注', cls:'yellow'}, red:{txt:'红色 · 需干预', cls:'red'} };
+  const LV = { green:{txt:'绿色 · 状态良好'}, yellow:{txt:'黄色 · 需关注'}, red:{txt:'红色 · 需干预'} };
 
-  let state = { user:null, tab:'dash', records:[], answers:{}, tags:[] };
+  const state = { user:null, tab:'dash', answers:{}, tags:[], data:null, loading:false };
 
   /* ---------------- 登录 ---------------- */
   function login(u, p) {
     const acc = RB.ACCOUNTS.find(a => a.user === u && a.pass === p);
-    if (!acc) return null;
-    state.user = acc;
-    return acc;
+    return acc || null;
   }
 
   function enterApp() {
     $('#login').style.display = 'none';
     $('#app').style.display = 'block';
-    $('#whoName').textContent = state.user.name + ' · ' + state.user.role;
-    $('#whoClass').textContent = state.user.klass;
-    renderDash();
-    renderQuestionnaire();
-    switchTab('dash');
+    const u = state.user;
+    $('#whoName').textContent = u.name + ' · ' + u.roleName;
+    $('#whoClass').textContent = u.klass;
+
+    const staff = RB.isStaff(u);
+    // 顶部导航按角色显隐
+    $$('.tabs button').forEach(b => {
+      const owner = b.dataset.role || 'staff';
+      b.style.display = (owner === 'student') === !staff ? '' : 'none';
+    });
+
+    if (staff) {
+      loadData().then(() => switchTab('dash'));
+    } else {
+      renderQuestionnaire();
+      renderRecord();
+      switchTab('questionnaire');
+    }
   }
 
-  /* ---------------- 标签切换 ---------------- */
   function switchTab(tab) {
     state.tab = tab;
     $$('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + tab));
     window.scrollTo({ top:0, behavior:'smooth' });
     if (tab === 'class') renderClass();
+    if (tab === 'dash') renderDash();
+    if (tab === 'students') renderStudents();
   }
 
-  /* ---------------- 1. 班级概览 ---------------- */
+  /* ---------------- 数据加载（教师后台） ---------------- */
+  async function loadData() {
+    state.loading = true;
+    try {
+      const res = await fetch('/api/data/list', { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      if (!data || data.ok !== true) throw new Error((data && data.error) || ('HTTP ' + res.status));
+      state.data = data;
+    } catch (e) {
+      state.data = { ok:false, error: e.message || String(e), submissions:[], students:[], stats:{ total:0, red:0, yellow:0, green:0, submissions:0 } };
+    } finally {
+      state.loading = false;
+    }
+    return state.data;
+  }
+
+  /* ---------------- 班级概览（真实数据） ---------------- */
   function renderDash() {
-    const S = RB.STUDENTS;
+    const d = state.data || { students:[], stats:{ total:0, red:0, yellow:0, green:0, submissions:0 } };
+    const S = d.students || [];
     const cnt = { green:0, yellow:0, red:0 };
-    S.forEach(s => cnt[s.risk]++);
-    const latest = RB.TREND[RB.TREND.length - 1];
+    S.forEach(s => cnt[s.level]++);
+
+    if (d.ok === false) {
+      $('#metrics').innerHTML = '';
+      $('#distBar').innerHTML = `<div class="notice warning"><div>数据读取失败：${esc(d.error)}</div></div>`;
+      $('#distLegend').innerHTML = '';
+      $('#classMeta').innerHTML = '';
+      $('#insights').innerHTML = '';
+      return;
+    }
 
     $('#metrics').innerHTML = [
-      metric('green', cnt.green, '绿色 · 状态良好'),
-      metric('yellow', cnt.yellow, '黄色 · 需关注'),
       metric('red', cnt.red, '红色 · 需干预'),
-      metric('', RB.CLASS.total, '班级总人数')
+      metric('yellow', cnt.yellow, '黄色 · 需关注'),
+      metric('green', cnt.green, '绿色 · 状态良好'),
+      metric('', d.stats.submissions, '累计提交次数')
     ].join('');
 
-    // 三色分布条
     const total = S.length;
-    const seg = k => `<div class="bar-seg ${k[0]}" style="width:${(cnt[k] / total * 100).toFixed(1)}%"></div>`;
-    $('#distBar').innerHTML = `<div class="bar-track">${seg('green')}${seg('yellow')}${seg('red')}</div>`;
-    $('#distLegend').innerHTML =
-      `<span><span class="dot" style="background:var(--green)"></span>绿色 ${cnt.green} 人（${(cnt.green/total*100).toFixed(1)}%）</span>` +
-      `<span><span class="dot" style="background:var(--yellow)"></span>黄色 ${cnt.yellow} 人（${(cnt.yellow/total*100).toFixed(1)}%）</span>` +
-      `<span><span class="dot" style="background:var(--red)"></span>红色 ${cnt.red} 人（${(cnt.red/total*100).toFixed(1)}%）</span>`;
+    if (total === 0) {
+      $('#distBar').innerHTML = `<div class="empty">暂无数据 · 等待学生填写问卷</div>`;
+      $('#distLegend').innerHTML = '';
+    } else {
+      const seg = k => `<div class="bar-seg ${k[0]}" style="width:${(cnt[k] / total * 100).toFixed(1)}%"></div>`;
+      $('#distBar').innerHTML = `<div class="bar-track">${seg('green')}${seg('yellow')}${seg('red')}</div>`;
+      $('#distLegend').innerHTML =
+        `<span><span class="dot" style="background:var(--green)"></span>绿色 ${cnt.green} 人（${(cnt.green/total*100).toFixed(1)}%）</span>` +
+        `<span><span class="dot" style="background:var(--yellow)"></span>黄色 ${cnt.yellow} 人（${(cnt.yellow/total*100).toFixed(1)}%）</span>` +
+        `<span><span class="dot" style="background:var(--red)"></span>红色 ${cnt.red} 人（${(cnt.red/total*100).toFixed(1)}%）</span>`;
+    }
 
     $('#classMeta').innerHTML =
-      kv('班级', RB.CLASS.name) + kv('学校', RB.CLASS.school) +
-      kv('总人数', RB.CLASS.total + ' 人') + kv('留守儿童', RB.CLASS.leftBehind + ' 人（' + Math.round(RB.CLASS.leftBehind/RB.CLASS.total*100) + '%）') +
-      kv('数据更新', RB.CLASS.updated);
+      kv('班级', state.user.klass) + kv('学校', '示范乡镇中学') +
+      kv('已提交学生', total + ' 人') + kv('累计提交', d.stats.submissions + ' 条') +
+      kv('数据更新', d.updatedAt ? new Date(d.updatedAt).toLocaleString('zh-CN') : '—');
 
-    // 趋势折线
-    $('#trend').innerHTML = trendSVG(RB.TREND);
-
-    // 班级共性诱因
-    $('#insights').innerHTML = RB.CLASS_INSIGHTS.map(i =>
+    $('#insights').innerHTML = classInsights(d).map(i =>
       `<div class="notice ${i.level}"><div><div class="ttl">${esc(i.title)}</div><div>${esc(i.desc)}</div></div></div>`
     ).join('');
+
+    // 最近提交
+    const recent = (d.submissions || []).slice(0, 6);
+    $('#recent').innerHTML = recent.length ? recent.map(s => `
+      <div class="notice info"><div>
+        <div class="ttl">${esc(s.name)} · ${s.type === 'questionnaire' ? '心理问卷' : '日常记录'}
+          <span class="pill ${s.level}" style="margin-left:6px">${LV[s.level].txt}</span></div>
+        <div>${esc(s.riskType || '—')} · ${new Date(s.createdAt).toLocaleString('zh-CN')}</div>
+      </div></div>`).join('')
+      : `<div class="empty">暂无提交记录</div>`;
+  }
+
+  function classInsights(d) {
+    const S = d.students || [];
+    const out = [];
+    if (!S.length) {
+      return [{ level:'info', title:'等待学生提交', desc:'当前尚无学生提交数据。请用 student1~student5 账号登录并完成问卷后，此处将自动汇总班级心理状况。' }];
+    }
+    const risk = S.filter(s => s.level !== 'green');
+    if (d.stats.red > 0) out.push({ level:'warning', title:`红色预警 ${d.stats.red} 人`, desc:'存在需干预的学生，建议 24 小时内安排一对一面谈，必要时联系心理教师与监护人。' });
+    if (risk.length) out.push({ level:'warning', title:`需关注学生 ${risk.length} 人`, desc:`共 ${risk.length} 名学生处于黄色或红色状态，占已提交人数的 ${Math.round(risk.length / S.length * 100)}%。` });
+    out.push({ level:'info', title:'数据实时同步', desc:`本页数据来自学生端真实提交，共 ${d.stats.submissions} 条记录，随学生填写自动更新。` });
+    return out;
   }
 
   function metric(cls, num, lbl) {
@@ -83,113 +149,71 @@
   }
   function kv(k, v) { return `<div class="kv"><span>${esc(k)}：</span><b>${esc(v)}</b></div>`; }
 
-  /* 纯 SVG 趋势折线 */
-  function trendSVG(data) {
-    const W = 760, H = 220, P = { l:38, r:14, t:14, b:28 };
-    const iw = W - P.l - P.r, ih = H - P.t - P.b;
-    const maxY = Math.max.apply(null, data.map(d => d.green)) + 2;
-    const minY = Math.min.apply(null, data.map(d => d.red)) - 2;
-    const x = i => P.l + iw * (data.length === 1 ? .5 : i / (data.length - 1));
-    const y = v => P.t + ih - ih * (v - minY) / Math.max(1, (maxY - minY));
-    const path = key => data.map((d, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(d[key]).toFixed(1)).join(' ');
-    const dots = (key, color) => data.map((d, i) =>
-      `<circle cx="${x(i).toFixed(1)}" cy="${y(d[key]).toFixed(1)}" r="3.2" fill="${color}"/>`).join('');
-    const xlabels = data.map((d, i) => `<text x="${x(i).toFixed(1)}" y="${H - 8}" font-size="11" fill="#6b7684" text-anchor="middle">${d.week}</text>`).join('');
-    // 网格
-    let grid = '';
-    for (let g = 0; g <= 3; g++) {
-      const v = Math.round(minY + (maxY - minY) * g / 3);
-      const yy = y(v).toFixed(1);
-      grid += `<line x1="${P.l}" y1="${yy}" x2="${W - P.r}" y2="${yy}" stroke="#e3e8ef"/>` +
-              `<text x="${P.l - 6}" y="${(+yy + 3.5).toFixed(1)}" font-size="10.5" fill="#6b7684" text-anchor="end">${v}</text>`;
-    }
-    return `<div class="trend-box"><svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="xMidYMid meet">
-      ${grid}
-      <path d="${path('green')}" fill="none" stroke="#1f9d55" stroke-width="2.4"/>
-      <path d="${path('yellow')}" fill="none" stroke="#c77700" stroke-width="2.4"/>
-      <path d="${path('red')}" fill="none" stroke="#c62828" stroke-width="2.4"/>
-      ${dots('green', '#1f9d55')}${dots('yellow', '#c77700')}${dots('red', '#c62828')}
-      ${xlabels}</svg>
-      <div class="trend-legend">
-        <span><span class="dot" style="background:var(--green)"></span>绿色（状态良好）</span>
-        <span><span class="dot" style="background:var(--yellow)"></span>黄色（需关注）</span>
-        <span><span class="dot" style="background:var(--red)"></span>红色（需干预）</span>
-        <span style="margin-left:auto;color:#6b7684">近 8 周</span>
-      </div></div>`;
-  }
-
-  /* ---------------- 2. 学生名单 ---------------- */
+  /* ---------------- 学生名单（真实数据） ---------------- */
   function renderStudents() {
-    const S = RB.STUDENTS.slice().sort((a, b) => b.score - a.score);
+    const S = ((state.data && state.data.students) || []).slice();
+    if (!S.length) {
+      $('#stuBody').innerHTML = `<tr><td colspan="9"><div class="empty">暂无学生提交数据</div></td></tr>`;
+      return;
+    }
     $('#stuBody').innerHTML = S.map(s => `
       <tr>
-        <td>${esc(s.id)}</td>
+        <td>${esc(s.user)}</td>
         <td><b>${esc(s.name)}</b></td>
-        <td>${esc(s.gender)}</td>
-        <td>${s.leftBehind ? '是' : '—'}</td>
-        <td><span class="pill ${s.risk}">${LV[s.risk].txt}</span></td>
+        <td>—</td>
+        <td>—</td>
+        <td><span class="pill ${s.level}">${LV[s.level].txt}</span></td>
         <td>${s.score}</td>
-        <td>${s.tags.map(t => '<span class="rule-tag">' + esc(t) + '</span>').join('')}</td>
+        <td>${(s.tags || []).map(t => '<span class="rule-tag">' + esc(t) + '</span>').join('') || '—'}</td>
         <td>${esc(s.last)}</td>
-        <td class="acts"><button class="btn ghost sm" data-plan="${esc(s.id)}">查看方案</button></td>
+        <td class="acts"><button class="btn ghost sm" data-plan="${esc(s.user)}">查看方案</button></td>
       </tr>`).join('');
     $$('#stuBody [data-plan]').forEach(b => b.onclick = () => openPlan(b.dataset.plan));
   }
 
-  function openPlan(id) {
-    const s = RB.STUDENTS.find(x => x.id === id);
-    const plan = RB.PLANS[id];
+  /* 从真实提交里取该学生最近一条，展示方案 */
+  function openPlan(user) {
+    const d = state.data || {};
+    const stu = (d.students || []).find(x => x.user === user);
+    const sub = (d.submissions || []).find(x => x.user === user);
     switchTab('plan');
-    if (plan) { renderPlan(s, plan, null); return; }
-    // 非预置案例：现场跑一次引擎，生成结构化建议
-    $('#planBody').innerHTML = `<div class="loading"><div class="spinner"></div>正在调用 AI 评估引擎（大模型 + RAG）生成方案…</div>`;
-    setTimeout(async () => {
-      const r = await RB.engine.assessAsync({ text:(s.tags || []).join(' '), answers:{}, studentName:s.name });
-      renderPlan(s, null, r);
-    }, 120);
+    if (!stu || !sub) {
+      $('#planBody').innerHTML = `<div class="empty">该学生暂无提交记录</div>`;
+      return;
+    }
+    renderPlan(stu, sub);
   }
 
-  function renderPlan(s, plan, eng) {
-    const risk = plan ? plan.risk : (eng ? eng.level : s.risk);
-    const riskType = plan ? plan.riskType : (eng ? eng.riskType : '');
-    const evidence = plan ? plan.evidence : (eng ? eng.evidence : []);
-    const steps = plan ? plan.steps : (eng ? eng.steps : []);
-    const theoryIds = plan ? plan.theory : (eng ? eng.theories.map(t => t.id) : []);
-    const theories = RB.THEORIES.filter(t => theoryIds.indexOf(t.id) !== -1);
-    const talk = plan ? plan.talk : [];
-    const watch = plan ? plan.watch : [];
+  function renderPlan(s, sub) {
+    const risk = sub.level;
+    const riskType = sub.riskType || '';
+    const evidence = sub.evidence || [];
+    const steps = sub.steps || [];
+    const talk = sub.talk || [];
+    const ruleHits = sub.ruleHits || [];
 
     $('#planBody').innerHTML = `
       <div class="result-head">
         <div><div class="lv" style="color:var(--${risk})">${LV[risk].txt}</div>
-        <div class="kv"><span>学生：</span><b>${esc(s.name)}（${esc(s.id)}）</b></div></div>
+        <div class="kv"><span>学生：</span><b>${esc(s.name)}（${esc(s.user)}）</b></div></div>
         <div style="margin-left:auto;text-align:right">
-          <div class="kv"><span>风险类型：</span><b>${esc(riskType)}</b></div>
-          <div class="kv"><span>评估引擎：</span><b>${esc(eng ? eng.model : 'RB-Assess v1.0')}</b></div>
+          <div class="kv"><span>风险类型：</span><b>${esc(riskType || '—')}</b></div>
+          <div class="kv"><span>综合风险分：</span><b>${esc(sub.score)} / 100</b></div>
+          <div class="kv"><span>提交时间：</span><b>${new Date(sub.createdAt).toLocaleString('zh-CN')}</b></div>
         </div>
       </div>
 
-      <div class="section-title">① 判定依据（可追溯）</div>
-      <ul class="ev">${evidence.map(e => '<li>' + esc(e) + '</li>').join('')}</ul>
+      ${evidence.length ? `<div class="section-title">① 判定依据（来自学生真实提交）</div>
+        <ul class="ev">${evidence.map(e => '<li>' + esc(e) + '</li>').join('')}</ul>` : ''}
 
-      ${eng && eng.ruleHits && eng.ruleHits.length ? `
-      <div class="section-title">② 规则引擎命中记录（硬兜底通道）</div>
-      <div>${eng.ruleHits.map(h => `<span class="rule-tag ${h.hard ? 'hard' : ''}">${esc(h.ruleId)} ${esc(h.type)}${h.hard ? ' · 硬触发' : ''}</span>`).join('')}</div>` : ''}
+      ${ruleHits.length ? `<div class="section-title">② 规则引擎命中记录</div>
+        <div>${ruleHits.map(h => `<span class="rule-tag ${h.hard ? 'hard' : ''}">${esc(h.ruleId)} ${esc(h.type)}${h.hard ? ' · 硬触发' : ''}</span>`).join('')}</div>` : ''}
 
-      <div class="section-title">③ 分步干预建议</div>
-      <ol class="steps">${steps.map(st => `<li><div class="st">${esc(st.t)}</div><div class="sd">${esc(st.d)}</div></li>`).join('')}</ol>
+      ${steps.length ? `<div class="section-title">③ 分步干预建议</div>
+        <ol class="steps">${steps.map(st => `<li><div class="st">${esc(st.t)}</div><div class="sd">${esc(st.d)}</div></li>`).join('')}</ol>` : ''}
 
       ${talk.length ? `<div class="section-title">④ 沟通话术参考</div>
         ${talk.map(t => `<div class="theory"><div class="ts">${esc(t)}</div></div>`).join('')}` : ''}
-
-      <div class="section-title">⑤ 理论来源（RAG 检索结果）</div>
-      ${theories.map(t => `<div class="theory">
-        <div><span class="tn">${esc(t.name)}</span><span class="ta">${esc(t.author)}</span></div>
-        <div class="ts">${esc(t.summary)}</div>
-        <div class="tap">▶ 干预要点：${esc(t.apply)}</div></div>`).join('') || '<div class="sub">未检索到匹配理论条目</div>'}
-
-      ${watch.length ? `<div class="section-title">⑥ 后续观察指标</div>
-        <div>${watch.map(w => '<span class="rule-tag">' + esc(w) + '</span>').join('')}</div>` : ''}
 
       <div class="notice info" style="margin-top:18px">
         <div>本方案由 AI 辅助生成，仅供参考，不替代专业心理诊断。涉及高危信号时须由专业人员介入。</div>
@@ -198,7 +222,7 @@
     const b = $('#backStu'); if (b) b.onclick = () => switchTab('students');
   }
 
-  /* ---------------- 3. 轻量问卷 ---------------- */
+  /* ---------------- 学生端：轻量问卷 ---------------- */
   function renderQuestionnaire() {
     const Q = RB.QUESTIONNAIRE;
     $('#qTitle').textContent = Q.title;
@@ -217,41 +241,26 @@
 
   function submitQuestionnaire() {
     const Q = RB.QUESTIONNAIRE;
-    if (Object.keys(state.answers).length < Q.items.length) {
-      $('#qResult').innerHTML = `<div class="notice warning"><div>还有 ${Q.items.length - Object.keys(state.answers).length} 题未作答，请完成后再提交。</div></div>`;
+    const answered = Object.keys(state.answers).length;
+    if (answered < Q.items.length) {
+      $('#qResult').innerHTML = `<div class="notice warning"><div>还有 ${Q.items.length - answered} 题未作答，请完成后再提交。</div></div>`;
       return;
     }
     $('#qResult').innerHTML = `<div class="loading"><div class="spinner"></div>AI 评估中（规则引擎硬筛查 → 语义推理 → RAG 理论检索）…</div>`;
+    $('#btnSubmitQ').disabled = true;
     setTimeout(async () => {
-      const r = await RB.engine.assessAsync({ answers: state.answers, text:'', studentName:'问卷评估' });
-      $('#qResult').innerHTML = resultCard(r, '问卷提交结果');
+      const r = await RB.engine.assessAsync({ answers: state.answers, text:'', studentName: state.user.name });
+      // 落库（真实数据）
+      const saved = await postSubmit({ type:'questionnaire', answers: state.answers, text:'', result: r });
+      $('#qResult').innerHTML = resultCard(r, '问卷提交结果', saved);
+      $('#btnSubmitQ').disabled = false;
       window.scrollTo({ top: document.body.scrollHeight, behavior:'smooth' });
-    }, 560);
+    }, 400);
   }
 
-  function resultCard(r, title) {
-    return `
-      <div class="card" style="margin-top:16px">
-        <h3>${esc(title)}</h3>
-        <div class="sub">综合风险分 ${r.score} / 100 · 引擎耗时 ${r.latencyMs} ms</div>
-        <div class="result-head">
-          <div><div class="lv" style="color:var(--${r.level})">${LV[r.level].txt}</div>
-          <div class="kv"><span>风险类型：</span><b>${esc(r.riskType)}</b></div></div>
-        </div>
-        <div class="section-title">判定依据</div>
-        <ul class="ev">${r.evidence.map(e => '<li>' + esc(e) + '</li>').join('')}</ul>
-        ${r.ruleHits.length ? `<div class="section-title">规则引擎命中</div>
-          <div>${r.ruleHits.map(h => `<span class="rule-tag ${h.hard ? 'hard' : ''}">${esc(h.ruleId)} ${esc(h.type)}</span>`).join('')}</div>` : ''}
-        <div class="section-title">建议动作</div>
-        <ol class="steps">${r.steps.slice(0, 3).map(st => `<li><div class="st">${esc(st.t)}</div><div class="sd">${esc(st.d)}</div></li>`).join('')}</ol>
-        <div class="notice info"><div>本结果由 AI 辅助生成，仅供参考，不替代专业心理诊断。</div></div>
-      </div>`;
-  }
-
-  /* ---------------- 4. 日常记录 ---------------- */
-  const TAGS = ['情绪低落', '易激惹', '走神', '社交退缩', '睡眠差', '作业拖延', '同伴冲突', '家庭变故', '状态平稳'];
+  /* 学生端：日常记录 */
   function renderRecord() {
-    $('#tagChips').innerHTML = TAGS.map(t => `<span class="chip" data-tag="${esc(t)}">${esc(t)}</span>`).join('');
+    $('#tagChips').innerHTML = RB.RECORD_TAGS.map(t => `<span class="chip" data-tag="${esc(t)}">${esc(t)}</span>`).join('');
     $$('#tagChips .chip').forEach(c => c.onclick = () => {
       const t = c.dataset.tag;
       const i = state.tags.indexOf(t);
@@ -268,12 +277,14 @@
     }
     const full = text + ' ' + state.tags.join(' ');
     $('#recResult').innerHTML = `<div class="loading"><div class="spinner"></div>AI 分析中（规则引擎硬筛查 → 大模型语义推理 → RAG 理论检索）…</div>`;
+    $('#btnSubmitR').disabled = true;
     setTimeout(async () => {
       const hits = RB.engine.ruleScan(full);
-      const r = await RB.engine.assessAsync({ text: full, answers:{}, studentName:'日常记录' });
+      const r = await RB.engine.assessAsync({ text: full, answers:{}, studentName: state.user.name });
+      const saved = await postSubmit({ type:'record', answers:{}, text: full, result: r });
       $('#recResult').innerHTML = `
         <div class="card" style="margin-top:16px">
-          <h3>记录已入库 · AI 实时分析</h3>
+          <h3>记录已提交${saved ? '并入库' : ''} · AI 实时分析</h3>
           <div class="sub">记录时间 ${new Date().toLocaleString('zh-CN')} · 标签：${state.tags.join('、') || '无'}</div>
           <div class="result-head"><div><div class="lv" style="color:var(--${r.level})">${LV[r.level].txt}</div>
             <div class="kv"><span>风险类型：</span><b>${esc(r.riskType)}</b></div></div></div>
@@ -286,50 +297,115 @@
           <ul class="ev">${r.evidence.map(e => '<li>' + esc(e) + '</li>').join('')}</ul>
           <div class="notice info"><div>AI 分析仅供参考，不替代专业心理诊断。</div></div>
         </div>`;
-      state.tags = []; state.answers = {};
+      $('#btnSubmitR').disabled = false;
+      state.tags = [];
       $$('#tagChips .chip').forEach(c => c.classList.remove('on'));
+      $('#recText').value = '';
       window.scrollTo({ top: document.body.scrollHeight, behavior:'smooth' });
-    }, 460);
+    }, 400);
   }
 
-  /* ---------------- 5. 班级报告 ---------------- */
+  /* 提交到服务端（真实落库） */
+  async function postSubmit(payload) {
+    try {
+      const res = await fetch('/api/data/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ user: state.user.user, name: state.user.name }, payload))
+      });
+      const data = await res.json();
+      return data && data.ok === true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function resultCard(r, title, saved) {
+    return `
+      <div class="card" style="margin-top:16px">
+        <h3>${esc(title)}</h3>
+        <div class="sub">综合风险分 ${r.score} / 100 · 引擎耗时 ${r.latencyMs} ms · ${saved ? '已同步至教师后台' : '本地展示（未能同步，请检查网络）'}</div>
+        <div class="result-head">
+          <div><div class="lv" style="color:var(--${r.level})">${LV[r.level].txt}</div>
+          <div class="kv"><span>风险类型：</span><b>${esc(r.riskType)}</b></div></div>
+        </div>
+        <div class="section-title">判定依据</div>
+        <ul class="ev">${r.evidence.map(e => '<li>' + esc(e) + '</li>').join('')}</ul>
+        ${(r.ruleHits && r.ruleHits.length) ? `<div class="section-title">规则引擎命中</div>
+          <div>${r.ruleHits.map(h => `<span class="rule-tag ${h.hard ? 'hard' : ''}">${esc(h.ruleId)} ${esc(h.type)}</span>`).join('')}</div>` : ''}
+        ${(r.steps && r.steps.length) ? `<div class="section-title">建议动作</div>
+          <ol class="steps">${r.steps.slice(0, 3).map(st => `<li><div class="st">${esc(st.t)}</div><div class="sd">${esc(st.d)}</div></li>`).join('')}</ol>` : ''}
+        <div class="notice info"><div>本结果由 AI 辅助生成，仅供参考，不替代专业心理诊断。</div></div>
+      </div>`;
+  }
+
+  /* ---------------- 班级报告（真实数据） ---------------- */
   function renderClass() {
-    const S = RB.STUDENTS;
-    const lb = S.filter(s => s.leftBehind && s.risk !== 'green').length;
-    const lbAll = S.filter(s => s.leftBehind).length;
+    const d = state.data || { students:[], stats:{ red:0, yellow:0, green:0, submissions:0 } };
+    const S = d.students || [];
+    const risk = S.filter(s => s.level !== 'green').sort((a, b) => b.score - a.score);
+
     $('#classReport').innerHTML = `
       <div class="grid g3">
-        ${metric('r', S.filter(s => s.risk === 'red').length, '红色 · 需干预')}
-        ${metric('y', S.filter(s => s.risk === 'yellow').length, '黄色 · 需关注')}
-        ${metric('', lb + '/' + lbAll, '风险学生中留守儿童占比')}
+        ${metric('red', d.stats.red, '红色 · 需干预')}
+        ${metric('yellow', d.stats.yellow, '黄色 · 需关注')}
+        ${metric('', d.stats.submissions, '累计提交次数')}
       </div>
       <div class="section-title">AI 归纳的班级共性诱因</div>
-      ${RB.CLASS_INSIGHTS.map(i => `<div class="notice ${i.level}"><div><div class="ttl">${esc(i.title)}</div><div>${esc(i.desc)}</div></div></div>`).join('')}
+      ${classInsights(d).map(i => `<div class="notice ${i.level}"><div><div class="ttl">${esc(i.title)}</div><div>${esc(i.desc)}</div></div></div>`).join('')}
       <div class="section-title">重点学生清单（红色 + 黄色）</div>
       <div class="card" style="padding:6px 0">
-        <table class="tb"><thead><tr><th>编号</th><th>姓名</th><th>风险</th><th>风险分</th><th>主要信号</th><th></th></tr></thead>
-        <tbody>${S.filter(s => s.risk !== 'green').sort((a,b) => b.score - a.score).map(s => `
-          <tr><td>${esc(s.id)}</td><td><b>${esc(s.name)}</b></td>
-          <td><span class="pill ${s.risk}">${LV[s.risk].txt}</span></td><td>${s.score}</td>
-          <td>${s.tags.map(t => '<span class="rule-tag">' + esc(t) + '</span>').join('')}</td>
-          <td class="acts"><button class="btn ghost sm" data-plan="${esc(s.id)}">查看方案</button></td></tr>`).join('')}
+        <table class="tb"><thead><tr><th>账号</th><th>姓名</th><th>风险</th><th>风险分</th><th>主要信号</th><th></th></tr></thead>
+        <tbody>${risk.length ? risk.map(s => `
+          <tr><td>${esc(s.user)}</td><td><b>${esc(s.name)}</b></td>
+          <td><span class="pill ${s.level}">${LV[s.level].txt}</span></td><td>${s.score}</td>
+          <td>${(s.tags || []).map(t => '<span class="rule-tag">' + esc(t) + '</span>').join('') || '—'}</td>
+          <td class="acts"><button class="btn ghost sm" data-plan="${esc(s.user)}">查看方案</button></td></tr>`).join('')
+          : '<tr><td colspan="6"><div class="empty">暂无重点学生</div></td></tr>'}
         </tbody></table>
       </div>
       <div class="section-title">导出</div>
       <div><button class="btn ghost sm" id="expPdf">导出班级晴雨表（PDF）</button>
-           <button class="btn ghost sm" id="expWord" style="margin-left:8px">导出个体方案（Word）</button>
            <button class="btn ghost sm" id="expXls" style="margin-left:8px">导出月度统计（Excel）</button></div>
-      <div class="sub" style="margin-top:8px">演示环境：导出按钮使用浏览器打印/CSV 能力模拟，线上版本由后端生成正式文件。</div>`;
+      <div class="sub" style="margin-top:8px">演示环境：导出按钮使用浏览器打印/CSV 能力模拟，线上版本由后端生成正式文件。</div>
+      <div class="section-title" style="color:#c62828">测试工具</div>
+      <div class="card" style="border-color:#f0d0d0">
+        <div class="sub" style="margin-top:0">清空全部学生提交数据（问卷 + 日常记录），用于反复测试。此操作不可恢复。</div>
+        <div style="margin-top:12px"><button class="btn" id="btnReset" style="background:#c62828">重置学生数据</button></div>
+      </div>`;
     $$('#classReport [data-plan]').forEach(b => b.onclick = () => openPlan(b.dataset.plan));
     $('#expPdf').onclick = () => window.print();
     $('#expXls').onclick = exportCSV;
-    $('#expWord').onclick = () => { switchTab('students'); };
+    $('#btnReset').onclick = doReset;
+  }
+
+  async function doReset() {
+    if (!window.confirm('确定要清空全部学生数据吗？此操作不可恢复，将删除所有问卷与日常记录。')) return;
+    if (!window.confirm('再次确认：重置后教师后台将回到「暂无数据」状态。继续？')) return;
+    const btn = $('#btnReset');
+    btn.disabled = true; btn.textContent = '正在重置…';
+    try {
+      const res = await fetch('/api/data/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'RESET' })
+      });
+      const data = await res.json();
+      if (!data || data.ok !== true) throw new Error((data && data.error) || ('HTTP ' + res.status));
+      await loadData();
+      switchTab('dash');
+      alert('已清空 ' + (data.deleted || 0) + ' 条学生数据。');
+    } catch (e) {
+      alert('重置失败：' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '重置学生数据';
+    }
   }
 
   function exportCSV() {
-    const rows = [['编号','姓名','性别','留守儿童','风险等级','风险分','主要信号']];
-    RB.STUDENTS.forEach(s => rows.push([s.id, s.name, s.gender, s.leftBehind ? '是' : '否',
-      LV[s.risk].txt, s.score, s.tags.join(' / ')]));
+    const S = (state.data && state.data.students) || [];
+    const rows = [['账号','姓名','风险等级','风险分','主要信号','最近更新']];
+    S.forEach(s => rows.push([s.user, s.name, LV[s.level].txt, s.score, (s.tags || []).join(' / '), s.last]));
     const csv = '\ufeff' + rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
@@ -344,20 +420,28 @@
       const acc = login($('#u').value.trim(), $('#p').value);
       if (!acc) { $('#loginErr').textContent = '账号或密码不正确'; return; }
       $('#loginErr').textContent = '';
+      state.user = acc;
       enterApp();
     });
-    $('#fillDemo').onclick = () => { $('#u').value = 'demo'; $('#p').value = 'czb2026'; };
+
+    // 一键填入按钮
+    $$('#fillBtns [data-fill]').forEach(b => b.onclick = () => {
+      $('#u').value = b.dataset.fill;
+      $('#p').value = b.dataset.pass || '12345678';
+      $('#loginErr').textContent = '';
+    });
+
     $('#logout').onclick = () => {
-      state = { user:null, tab:'dash', records:[], answers:{}, tags:[] };
+      state.user = null; state.answers = {}; state.tags = []; state.data = null;
       $('#app').style.display = 'none'; $('#login').style.display = 'flex';
       $('#qResult').innerHTML = ''; $('#recResult').innerHTML = '';
       $('#recText').value = ''; $('#qProg').textContent = '0 / 10';
+      $('#u').value = ''; $('#p').value = '';
     };
+
     $$('.tabs button').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
     $('#btnSubmitQ').onclick = submitQuestionnaire;
     $('#btnResetQ').onclick = () => { state.answers = {}; renderQuestionnaire(); $('#qResult').innerHTML = ''; $('#qProg').textContent = '0 / 10'; };
     $('#btnSubmitR').onclick = submitRecord;
-    renderStudents();
-    renderRecord();
   });
 })();

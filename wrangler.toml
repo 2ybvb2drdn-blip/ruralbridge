@@ -1,0 +1,16 @@
+# ============================================================
+# 乡育心桥 · RuralBridge —— Cloudflare Pages 配置
+# 说明：Pages 项目的绑定通过本文件声明。
+#   - RURALBRIDGE_DB：学生真实提交数据存储（D1 / SQLite，强一致）
+#   部署命令：wrangler pages deploy web --project-name ruralbridge
+#   初始化：wrangler d1 execute ruralbridge-db --remote --file=schema.sql
+# ============================================================
+name = "ruralbridge"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "web"
+
+[[d1_databases]]
+binding = "RURALBRIDGE_DB"
+database_name = "ruralbridge-db"
+database_id = "65e9c533-db65-4da0-bfcd-f3a447aa4169"

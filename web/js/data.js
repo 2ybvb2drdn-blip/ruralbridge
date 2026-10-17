@@ -25,6 +25,60 @@ RB.ACCOUNTS = [
 /* 是否教师视角（可看后台） */
 RB.isStaff = function (acc) { return !!acc && (acc.role === 'teacher' || acc.role === 'counselor'); };
 
+/* ---------------- 角色化导航（两套完全不同的工作台） ----------------
+ * 班主任：数据收集 → AI 翻译成管理动作 → 行动台账闭环
+ * 心理教师：预警队列 → 专业研判 → 辅导档案 → 转介危机
+ */
+RB.NAV = {
+  teacher: [
+    { tab:'dash',     label:'班级概览' },
+    { tab:'classai',  label:'班级研判' },
+    { tab:'students', label:'学生名单' },
+    { tab:'collect',  label:'数据收集' },
+    { tab:'actions',  label:'行动台账' },
+    { tab:'report',   label:'班级报告' }
+  ],
+  counselor: [
+    { tab:'queue',    label:'预警队列' },
+    { tab:'plan',     label:'个案研判' },
+    { tab:'cases',    label:'辅导档案' },
+    { tab:'climate',  label:'心理态势' },
+    { tab:'referral', label:'转介与危机' },
+    { tab:'toolbox',  label:'专业工具箱' }
+  ],
+  student: [
+    { tab:'questionnaire', label:'心理问卷' },
+    { tab:'record',        label:'日常记录' },
+    { tab:'mine',          label:'我的结果' }
+  ]
+};
+
+/* ---------------- 角色权限表（渲染前判权，不只靠隐藏按钮） ---------------- */
+RB.PERMS = {
+  teacher:   { counseling:false, cases:false, referralWrite:false, collect:true,  actions:true,  campus:false },
+  counselor: { counseling:true,  cases:true,  referralWrite:true,  collect:false, actions:false, campus:true  },
+  student:   { counseling:false, cases:false, referralWrite:false, collect:false, actions:false, campus:false }
+};
+
+RB.can = function (acc, key) {
+  const p = RB.PERMS[acc && acc.role];
+  return !!(p && p[key]);
+};
+
+/* 角色主题文案（顶栏与首页 hero 共用） */
+RB.ROLE_META = {
+  teacher: {
+    chip:'班主任工作台',
+    focus:'班上现在什么情况 · 我明天能做什么',
+    hero:'你的关注点：<b>班上现在什么情况、我明天能做什么</b>。数据来自学生真实提交，AI 把数据翻译成可直接执行的班级管理动作。'
+  },
+  counselor: {
+    chip:'心理教师工作台',
+    focus:'这个孩子内心在发生什么 · 我该怎么陪他走出来',
+    hero:'你的关注点：<b>这个学生内心在发生什么、我该怎么辅导</b>。数据是入口，AI 负责把信号翻译成个案概念化、辅导技术与会谈节奏。'
+  }
+};
+
 /* ---------------- 心理学理论库（RAG 检索源） ---------------- */
 RB.THEORIES = [
   {

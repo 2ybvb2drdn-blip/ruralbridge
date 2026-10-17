@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="乡育心桥 RuralBridge — 乡村学生心理成长与教师辅助 Agent。轻量化心理问卷 + 多模态日常记录，AI 自动生成班级心理晴雨表与个体干预方案。">
+<meta name="description" content="乡育心桥 RuralBridge — 乡村学生心理成长与教师辅助 Agent。轻量化心理问卷 + 多模态日常记录，AI 自动生成班级心理晴雨表与个体干预方案；班主任与心理教师双角色差异化工作流。">
 <title>乡育心桥 · RuralBridge | 乡村学生心理成长与教师辅助 Agent</title>
 <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -42,7 +42,7 @@
         <button type="button" class="btn ghost sm" data-fill="student5">学生5</button>
       </div>
       <div style="margin-top:10px;font-size:12px;color:#6b7684">
-        密码统一为 <b>12345678</b>。班主任 / 心理教师进入管理后台，学生进入问卷与记录页。
+        密码统一为 <b>12345678</b>。班主任 / 心理教师进入管理后台（<b>两套差异化工作流</b>），学生进入问卷与记录页。
       </div>
     </div>
     <div class="hint" style="background:#fff8f0;border-color:#f0dcc0">
@@ -57,24 +57,20 @@
     <div class="t-left"><span class="mark">桥</span> 乡育心桥 · RuralBridge</div>
     <div class="t-right">
       <span class="who" id="whoName">—</span>
+      <span class="role-chip" id="roleChip">—</span>
       <span class="who" id="whoClass">—</span>
       <button class="link" id="logout">退出</button>
     </div>
   </header>
 
-  <nav class="tabs">
-    <button data-tab="dash" data-role="staff" class="active">班级概览</button>
-    <button data-tab="students" data-role="staff">学生名单</button>
-    <button data-tab="class" data-role="staff">班级报告</button>
-    <button data-tab="plan" data-role="staff">干预方案</button>
-    <button data-tab="questionnaire" data-role="student">心理问卷</button>
-    <button data-tab="record" data-role="student">日常记录</button>
-  </nav>
+  <nav class="tabs" id="tabs"></nav>
 
   <main class="wrap">
 
-    <!-- ---------- 班级概览（教师） ---------- -->
-    <section class="view active" id="view-dash">
+    <!-- ============ 班主任：班级概览 ============ -->
+    <section class="view" id="view-dash">
+      <div class="role-banner" id="roleBanner"></div>
+
       <div class="section-title">班级心理晴雨表（来自学生真实提交）</div>
       <div class="grid g4" id="metrics"></div>
 
@@ -98,28 +94,186 @@
         <div id="recent"></div>
       </div>
 
-      <div class="section-title">AI 归纳的班级共性诱因</div>
+      <div class="section-title">今日待办（AI 建议 + 行动台账）</div>
+      <div id="dashTodo"></div>
+
+      <div class="section-title">快速结论</div>
       <div id="insights"></div>
+      <div style="margin-top:14px">
+        <button class="btn" id="gotoClassAI">查看 AI 班级研判与行动清单 →</button>
+      </div>
     </section>
 
-    <!-- ---------- 学生名单（教师） ---------- -->
+    <!-- ============ 班主任：AI 班级研判（宏观） ============ -->
+    <section class="view" id="view-classai">
+      <div class="section-title">AI 班级整体状态研判</div>
+      <div class="card" id="classAIBody">
+        <div class="sub">基于全班学生聚合数据（不含姓名，仅送聚合特征）由大模型归纳。点击下方按钮开始研判。</div>
+        <div style="margin-top:12px"><button class="btn" id="btnClassAI">生成班级研判</button></div>
+      </div>
+    </section>
+
+    <!-- ============ 班主任：数据收集 ============ -->
+    <section class="view" id="view-collect">
+      <div class="section-title">数据收集与回收</div>
+      <div class="grid g4" id="collectMetrics"></div>
+
+      <div class="grid g2" style="margin-top:16px">
+        <div class="card">
+          <h3>未提交名单</h3>
+          <div class="sub">点击「加入待办」写入行动台账，便于持续跟进</div>
+          <div id="collectMissing"></div>
+        </div>
+        <div class="card">
+          <h3>数据质量提示</h3>
+          <div class="sub">连续同选项、单次提交等疑似敷衍作答，建议当面确认</div>
+          <div id="collectQuality"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>提交明细</h3>
+        <div class="sub">按提交时间倒序，标注类型与风险等级</div>
+        <div id="collectDetail"></div>
+      </div>
+    </section>
+
+    <!-- ============ 班主任：行动台账 ============ -->
+    <section class="view" id="view-actions">
+      <div class="section-title">行动台账 · 数据 → AI → 动作 → 执行</div>
+      <div class="card">
+        <h3>新增动作</h3>
+        <div class="sub">每条动作记录来源，答辩时可完整复盘「AI 建议是否真的被执行」</div>
+        <div class="grid g4" style="margin-top:6px">
+          <input type="text" id="actText" placeholder="动作内容，如：本周数学作业减 30%">
+          <select id="actDim">
+            <option value="作业">作业调整</option>
+            <option value="活动">课外活动</option>
+            <option value="课堂">课堂模式</option>
+            <option value="座位">座位与同伴</option>
+            <option value="家校">家校沟通</option>
+            <option value="个体">个体关注</option>
+          </select>
+          <input type="text" id="actStu" placeholder="对象（学生姓名或「全班」）">
+          <input type="date" id="actDue">
+        </div>
+        <div style="margin-top:12px"><button class="btn" id="btnAddAct">加入台账</button></div>
+      </div>
+
+      <div class="grid g3" style="margin-top:16px">
+        <div class="card"><h3>待执行</h3><div class="sub" id="actTodoCnt">—</div><div id="actTodo"></div></div>
+        <div class="card"><h3>已逾期</h3><div class="sub" id="actOverCnt">—</div><div id="actOverdue"></div></div>
+        <div class="card"><h3>已完成</h3><div class="sub" id="actDoneCnt">—</div><div id="actDone"></div></div>
+      </div>
+    </section>
+
+    <!-- ============ 班主任：学生名单（只给支持动作，不给机制） ============ -->
     <section class="view" id="view-students">
-      <div class="section-title">学生名单与风险状态（真实提交）</div>
+      <div class="section-title" id="stuTitle">学生名单与风险状态（真实提交）</div>
       <div class="card" style="padding:6px 0;overflow-x:auto">
         <table class="tb">
           <thead><tr>
-            <th>账号</th><th>姓名</th><th>性别</th><th>留守</th><th>风险等级</th>
-            <th>风险分</th><th>主要信号</th><th>最近更新</th><th>操作</th>
+            <th>账号</th><th>姓名</th><th>风险等级</th>
+            <th>风险分</th><th>主要信号</th><th>最近更新</th><th>心理教师</th><th>操作</th>
           </tr></thead>
           <tbody id="stuBody"></tbody>
         </table>
       </div>
       <div class="notice info" style="margin-top:12px">
-        <div>本表按学生最近一次提交实时聚合；学生每次提交问卷或日常记录后自动刷新。</div>
+        <div>本表按学生最近一次提交实时聚合；学生每次提交问卷或日常记录后自动刷新。点击「操作」按<b>班主任视角</b>生成支持动作——不包含心理教师的专业研判内容。</div>
       </div>
     </section>
 
-    <!-- ---------- 学生端：心理问卷 ---------- -->
+    <!-- ============ 班主任：班级报告 ============ -->
+    <section class="view" id="view-report">
+      <div class="section-title" id="reportTitle">班级报告</div>
+      <div id="classReport"></div>
+    </section>
+
+    <!-- ============ 心理教师：预警队列 ============ -->
+    <section class="view" id="view-queue">
+      <div class="role-banner" id="queueBanner"></div>
+      <div class="grid g4" id="queueMetrics"></div>
+      <div class="section-title">按风险与时限排序的预警队列</div>
+      <div class="card" style="padding:6px 0;overflow-x:auto">
+        <table class="tb">
+          <thead><tr>
+            <th>优先</th><th>姓名</th><th>风险等级</th><th>风险类型</th>
+            <th>风险分</th><th>最近提交</th><th>接手状态</th><th>操作</th>
+          </tr></thead>
+          <tbody id="queueBody"></tbody>
+        </table>
+      </div>
+      <div class="notice info" style="margin-top:12px">
+        <div>红色个案 24 小时内须完成首次接触，黄色个案本周内完成。接手状态会同步回班主任端（班主任只看到「心理教师已接手」徽标，看不到辅导内容）。</div>
+      </div>
+    </section>
+
+    <!-- ============ 心理教师：个案研判 ============ -->
+    <section class="view" id="view-plan">
+      <div class="section-title">个案专业研判</div>
+      <div class="card" id="planBody">
+        <div class="sub">请从「预警队列」中选择一名学生，生成专业研判（个案概念化 / 机制 / 辅导技术 / 会谈计划 / 风险研判与转介）。</div>
+      </div>
+    </section>
+
+    <!-- ============ 心理教师：辅导档案 ============ -->
+    <section class="view" id="view-cases">
+      <div class="section-title">辅导档案 · 个案跟踪</div>
+      <div class="card">
+        <div class="sub" style="margin-bottom:0">每个已接手的学生一张档案卡，记录状态流转、会谈次数、复评变化与下次随访日期。</div>
+      </div>
+      <div class="grid g2" id="caseGrid" style="margin-top:16px"></div>
+    </section>
+
+    <!-- ============ 心理教师：心理态势 ============ -->
+    <section class="view" id="view-climate">
+      <div class="section-title">全校心理态势（群体画像，非管理动作）</div>
+      <div class="card" id="climateBody">
+        <div class="sub">基于各班聚合数据生成群体心理特征画像与发展性课程建议。此处不输出作业量、课堂模式等班主任职权内的管理动作。</div>
+        <div style="margin-top:12px"><button class="btn" id="btnClimate">生成心理态势画像</button></div>
+      </div>
+    </section>
+
+    <!-- ============ 心理教师：转介与危机 ============ -->
+    <section class="view" id="view-referral">
+      <div class="section-title">转介与危机流程</div>
+      <div class="card">
+        <h3>危机处理流程清单</h3>
+        <div class="sub">按顺序逐项确认，勾选状态保存在本地，刷新不丢失</div>
+        <div id="crisisList"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>转介单生成</h3>
+        <div class="sub">选择学生后可生成可直接打印的转介单（含依据、建议机构、监护人告知情况）</div>
+        <div class="grid g3" style="margin-top:6px">
+          <select id="refStu"></select>
+          <input type="text" id="refOrg" placeholder="建议转介机构（默认县级未成年人心理健康辅导中心）">
+          <input type="date" id="refDate">
+        </div>
+        <div style="margin-top:12px">
+          <button class="btn" id="btnRefGen">生成转介单</button>
+          <button class="btn ghost" id="btnRefPrint" style="margin-left:8px">打印</button>
+        </div>
+      </div>
+      <div id="refBody"></div>
+    </section>
+
+    <!-- ============ 心理教师：专业工具箱 ============ -->
+    <section class="view" id="view-toolbox">
+      <div class="section-title">RAG 理论库检索</div>
+      <div class="card">
+        <div class="sub">输入风险类型或关键词（如「留守儿童」「社交退缩」「易激惹」），召回匹配的心理学理论条目</div>
+        <input type="text" id="ragQ" placeholder="输入关键词，回车检索">
+        <div id="ragOut" style="margin-top:14px"></div>
+      </div>
+
+      <div class="section-title">常用技术卡</div>
+      <div class="grid g2" id="techCards"></div>
+    </section>
+
+    <!-- ============ 学生：心理问卷 ============ -->
     <section class="view" id="view-questionnaire">
       <div class="section-title">轻量化心理问卷（约 3 分钟）</div>
       <div class="card">
@@ -138,7 +292,7 @@
       </div>
     </section>
 
-    <!-- ---------- 学生端：日常记录 ---------- -->
+    <!-- ============ 学生：日常记录 ============ -->
     <section class="view" id="view-record">
       <div class="section-title">多模态日常记录</div>
       <div class="grid g2">
@@ -158,25 +312,20 @@
             <li><div class="st">特征归一化</div><div class="sd">结构化问卷数据与非结构化文本统一进入同一检索空间。</div></li>
             <li><div class="st">语义推理</div><div class="sd">大模型判定风险等级、风险类型，抽取关键证据句。</div></li>
             <li><div class="st">RAG 理论检索</div><div class="sd">按风险类型召回心理学理论条目，为建议提供依据。</div></li>
-            <li><div class="st">方案生成与落库</div><div class="sd">生成分步干预建议并回填理论来源，刷新班级晴雨表。</div></li>
+            <li><div class="st">方案生成与落库</div><div class="sd">按角色生成建议（学生自助 / 班主任行动 / 心理教师研判）并刷新晴雨表。</div></li>
           </ol>
         </div>
       </div>
       <div id="recResult"></div>
     </section>
 
-    <!-- ---------- 班级报告（教师） ---------- -->
-    <section class="view" id="view-class">
-      <div class="section-title">班级心理工作报告</div>
-      <div id="classReport"></div>
-    </section>
-
-    <!-- ---------- 干预方案（教师） ---------- -->
-    <section class="view" id="view-plan">
-      <div class="section-title">个体干预方案</div>
-      <div class="card" id="planBody">
-        <div class="sub">请从「学生名单」或「班级报告」中选择一名学生查看 AI 生成的干预方案。</div>
+    <!-- ============ 学生：我的结果 ============ -->
+    <section class="view" id="view-mine">
+      <div class="section-title">我的记录与自助建议</div>
+      <div class="card">
+        <div class="sub" style="margin-bottom:0">这里只显示你自己的提交记录与 AI 给出的自助建议，其他同学看不到你的内容。</div>
       </div>
+      <div id="mineBody" style="margin-top:14px"></div>
     </section>
 
   </main>
@@ -184,13 +333,18 @@
   <footer class="site">
     <div class="disc">
       乡育心桥 · RuralBridge — 传智杯全国大学生 IT 技能大赛参赛作品（测试环境）<br>
-      本系统数据由测试学生账号真实填写产生；AI 输出仅供参考，不替代专业心理诊断。
+      本系统数据由测试学生账号真实填写产生；AI 输出仅供参考，不替代专业心理诊断。<br>
+      心理援助热线：<b>12356</b>
     </div>
   </footer>
 </div>
 
 <script src="js/data.js"></script>
 <script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/teacher.js"></script>
+<script src="js/counselor.js"></script>
+<script src="js/student.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

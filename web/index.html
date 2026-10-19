@@ -141,7 +141,7 @@
       <div class="section-title">行动台账 · 数据 → AI → 动作 → 执行</div>
       <div class="card">
         <h3>新增动作</h3>
-        <div class="sub">每条动作记录来源，答辩时可完整复盘「AI 建议是否真的被执行」</div>
+        <div class="sub">手工录入的动作会标记为「教师·手工录入」，与 AI 建议区分开</div>
         <div class="grid g4" style="margin-top:6px">
           <input type="text" id="actText" placeholder="动作内容，如：本周数学作业减 30%">
           <select id="actDim">
@@ -162,6 +162,12 @@
         <div class="card"><h3>待执行</h3><div class="sub" id="actTodoCnt">—</div><div id="actTodo"></div></div>
         <div class="card"><h3>已逾期</h3><div class="sub" id="actOverCnt">—</div><div id="actOverdue"></div></div>
         <div class="card"><h3>已完成</h3><div class="sub" id="actDoneCnt">—</div><div id="actDone"></div></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>执行情况统计</h3>
+        <div class="sub">按动作来源分组，统计 AI 建议实际被执行的比例</div>
+        <div id="actSourceStat"></div>
       </div>
     </section>
 

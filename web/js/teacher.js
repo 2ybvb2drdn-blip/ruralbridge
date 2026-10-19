@@ -37,7 +37,18 @@
   }
   function saveActs(a) { U.lsSet(TODO_KEY, a); }
 
-  function addAct(text, dim, target, due) {
+  /* 动作来源：决定这条台账是 AI 给的、系统提醒的，还是老师手写的。
+     答辩时可据此统计「AI 建议被执行了多少」。 */
+  const SRC = {
+    ai_class:   { txt:'AI · 班级研判', cls:'ai'   },
+    ai_student: { txt:'AI · 个案研判', cls:'ai'   },
+    ai_dash:    { txt:'AI · 今日建议', cls:'ai'   },
+    collect:    { txt:'系统 · 数据提醒', cls:'sys' },
+    manual:     { txt:'教师 · 手工录入', cls:'man' }
+  };
+  function srcOf(a) { return SRC[a.source] || SRC.manual; }
+
+  function addAct(text, dim, target, due, source) {
     const a = acts();
     a.unshift({
       id: uid(),
@@ -45,6 +56,7 @@
       dim: dim || '作业',
       target: target || '全班',
       due: due || '',
+      source: SRC[source] ? source : 'manual',
       createdAt: Date.now(),
       done: false,
       doneAt: 0
@@ -65,13 +77,16 @@
 
   function actItem(a, opts) {
     const overdue = !a.done && a.due && new Date(a.due) < new Date(new Date().toDateString());
+    const s = srcOf(a);
     return `<div class="act-item ${a.done ? 'done' : ''} ${overdue ? 'overdue' : ''}" data-id="${a.id}">
       <div class="act-body">
         <div class="act-t">${esc(a.text)}</div>
         <div class="act-m">
           <span class="dim-tag ${esc(a.dim)}">${esc(a.dim)}</span>
+          <span class="src-tag ${s.cls}">${esc(s.txt)}</span>
           <span>对象：${esc(a.target)}</span>
           ${a.due ? `<span>截止：${esc(a.due)}${overdue ? ' · 已逾期' : ''}</span>` : ''}
+          ${a.done && a.doneAt ? `<span>完成：${esc(ts(a.doneAt))}</span>` : ''}
         </div>
       </div>
       <div class="act-ops">
@@ -164,7 +179,7 @@
 
     $$('#dashTodo [data-quick-add]').forEach(b => b.onclick = () => {
       const p = b.dataset.quickAdd.split('|');
-      addAct(p[0], p[1], p[2], '');
+      addAct(p[0], p[1], p[2], '', 'ai_dash');
       renderDash();
     });
     $$('#dashTodo [data-act-done]').forEach(b => b.onclick = () => {
@@ -264,7 +279,7 @@
       const dims = [['作业','workload'], ['活动','activity'], ['课堂','classroom'], ['家校','home']];
       let n = 0;
       dims.forEach(([dim, key]) => {
-        (r[key] || []).forEach(x => { addAct(x.t + '：' + x.d, dim, '全班', ''); n++; });
+        (r[key] || []).forEach(x => { addAct(x.t + '：' + x.d, dim, '全班', '', 'ai_class'); n++; });
       });
       alert('已加入 ' + n + ' 条动作到行动台账。');
       RB.route('actions');
@@ -348,8 +363,8 @@
     $('#btnClosePlan').onclick = () => host.innerHTML = '';
     $('#btnToActs').onclick = () => {
       let n = 0;
-      (t.immediate || []).forEach(x => { addAct(x.t + '：' + x.d, '个体', stu.name, ''); n++; });
-      (t.classroomAdjust || []).forEach(x => { addAct(x.t + '：' + x.d, '课堂', '全班', ''); n++; });
+      (t.immediate || []).forEach(x => { addAct(x.t + '：' + x.d, '个体', stu.name, '', 'ai_student'); n++; });
+      (t.classroomAdjust || []).forEach(x => { addAct(x.t + '：' + x.d, '课堂', '全班', '', 'ai_student'); n++; });
       alert('已加入 ' + n + ' 条动作到行动台账。');
       RB.route('actions');
     };
@@ -380,7 +395,7 @@
     ).join('') : empty('全部学生均已提交，数据完整');
 
     $$('#collectMissing [data-remind]').forEach(b => b.onclick = () => {
-      addAct('提醒 ' + b.dataset.remind + ' 完成问卷提交', '个体', b.dataset.remind, '');
+      addAct('提醒 ' + b.dataset.remind + ' 完成问卷提交', '个体', b.dataset.remind, '', 'collect');
       alert('已加入行动台账');
     });
 
@@ -441,13 +456,39 @@
     $('#actDone').innerHTML = done.length ? done.slice(0, 10).map(x => actItem(x, { checkable:true })).join('') : empty('暂无已完成');
     bind();
 
+    /* 按来源统计执行率：这是「AI 建议是否真的被执行」的真实数据源 */
+    const groups = {};
+    a.forEach(x => {
+      const k = x.source || 'manual';
+      if (!groups[k]) groups[k] = { total:0, done:0 };
+      groups[k].total++;
+      if (x.done) groups[k].done++;
+    });
+    const order = ['ai_class', 'ai_student', 'ai_dash', 'collect', 'manual'];
+    const rows = order.filter(k => groups[k]).map(k => {
+      const g = groups[k], s = SRC[k];
+      const rate = g.total ? Math.round(g.done / g.total * 100) : 0;
+      return `<tr>
+        <td><span class="src-tag ${s.cls}">${esc(s.txt)}</span></td>
+        <td>${g.total}</td>
+        <td>${g.done}</td>
+        <td><b>${rate}%</b></td>
+        <td><div class="rate-bar"><i style="width:${rate}%"></i></div></td>
+      </tr>`;
+    });
+    $('#actSourceStat').innerHTML = rows.length ? `
+      <table class="tb"><thead><tr>
+        <th>来源</th><th>总数</th><th>已完成</th><th>执行率</th><th></th>
+      </tr></thead><tbody>${rows.join('')}</tbody></table>`
+      : empty('暂无动作记录，执行率统计将在录入后生成');
+
     const btn = $('#btnAddAct');
     if (btn && !btn.dataset.bound) {
       btn.dataset.bound = '1';
       btn.onclick = () => {
         const text = $('#actText').value.trim();
         if (!text) { alert('请填写动作内容'); return; }
-        addAct(text, $('#actDim').value, $('#actStu').value.trim() || '全班', $('#actDue').value);
+        addAct(text, $('#actDim').value, $('#actStu').value.trim() || '全班', $('#actDue').value, 'manual');
         $('#actText').value = ''; $('#actStu').value = ''; $('#actDue').value = '';
         renderActions();
       };

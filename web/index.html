@@ -138,24 +138,8 @@
 
     <!-- ============ 班主任：行动台账 ============ -->
     <section class="view" id="view-actions">
-      <div class="section-title">行动台账 · 数据 → AI → 动作 → 执行</div>
-      <div class="card">
-        <h3>新增动作</h3>
-        <div class="sub">手工录入的动作会标记为「教师·手工录入」，与 AI 建议区分开</div>
-        <div class="grid g4" style="margin-top:6px">
-          <input type="text" id="actText" placeholder="动作内容，如：本周数学作业减 30%">
-          <select id="actDim">
-            <option value="作业">作业调整</option>
-            <option value="活动">课外活动</option>
-            <option value="课堂">课堂模式</option>
-            <option value="座位">座位与同伴</option>
-            <option value="家校">家校沟通</option>
-            <option value="个体">个体关注</option>
-          </select>
-          <input type="text" id="actStu" placeholder="对象（学生姓名或「全班」）">
-          <input type="date" id="actDue">
-        </div>
-        <div style="margin-top:12px"><button class="btn" id="btnAddAct">加入台账</button></div>
+      <div class="section-title">行动台账 · 数据 → AI → 动作 → 执行
+        <button class="btn ghost sm" id="btnOpenAct" style="margin-left:auto;font-weight:500">+ 手工录入</button>
       </div>
 
       <div class="grid g3" style="margin-top:16px">
@@ -341,6 +325,42 @@
       心理援助热线：<b>12356</b>
     </div>
   </footer>
+</div>
+
+<!-- ================= 手工录入动作弹窗 ================= -->
+<div class="modal-mask" id="actModal">
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="actModalTitle">
+    <div class="modal-head">
+      <h3 id="actModalTitle">手工录入动作</h3>
+      <button class="modal-x" id="actModalClose" aria-label="关闭">×</button>
+    </div>
+    <div class="sub">AI 建议覆盖不到的情况可在这里补录，会标记为「教师 · 手工录入」</div>
+    <label class="field">动作内容</label>
+    <input type="text" id="actText" placeholder="如：本周数学作业减 30%">
+    <div class="modal-row">
+      <div>
+        <label class="field">分类</label>
+        <select id="actDim">
+          <option value="作业">作业调整</option>
+          <option value="活动">课外活动</option>
+          <option value="课堂">课堂模式</option>
+          <option value="座位">座位与同伴</option>
+          <option value="家校">家校沟通</option>
+          <option value="个体">个体关注</option>
+        </select>
+      </div>
+      <div>
+        <label class="field">截止日期</label>
+        <input type="date" id="actDue">
+      </div>
+    </div>
+    <label class="field">对象</label>
+    <input type="text" id="actStu" placeholder="学生姓名或「全班」">
+    <div class="modal-foot">
+      <button class="btn ghost" id="actModalCancel">取消</button>
+      <button class="btn" id="btnAddAct">加入台账</button>
+    </div>
+  </div>
 </div>
 
 <script src="js/data.js"></script>

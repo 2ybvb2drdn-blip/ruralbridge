@@ -292,6 +292,24 @@ footer.site .disc { max-width:760px; margin:0 auto; padding:10px 14px; backgroun
 .mini-list { margin:6px 0 0; padding-left:18px; font-size:13px; color:#41505f; }
 .mini-list li { margin:3px 0; }
 
+/* 手工录入弹窗 */
+.modal-mask { display:none; position:fixed; inset:0; z-index:200; background:rgba(16,32,64,.42);
+  align-items:center; justify-content:center; padding:20px; }
+.modal-mask.open { display:flex; }
+.modal-box { width:100%; max-width:460px; background:var(--card); border-radius:16px; padding:22px 24px 20px;
+  box-shadow:0 20px 60px rgba(16,32,64,.24); border:1px solid var(--line);
+  max-height:calc(100vh - 40px); overflow-y:auto; animation:modalIn .16s ease-out; }
+@keyframes modalIn { from { opacity:0; transform:translateY(8px) scale(.985); } to { opacity:1; transform:none; } }
+.modal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+.modal-head h3 { margin:0; font-size:16px; }
+.modal-x { border:none; background:none; font-size:22px; line-height:1; color:var(--muted);
+  cursor:pointer; padding:0 2px; font-family:inherit; }
+.modal-x:hover { color:var(--ink); }
+.modal-box .sub { color:var(--muted); font-size:12.5px; margin-bottom:6px; }
+.modal-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.modal-foot { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+@media (max-width:520px) { .modal-row { grid-template-columns:1fr; } }
+
 @media print {
   .topbar, .tabs, footer.site, .no-print { display:none !important; }
   .wrap { padding:0; }

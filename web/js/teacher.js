@@ -482,14 +482,58 @@
       </tr></thead><tbody>${rows.join('')}</tbody></table>`
       : empty('暂无动作记录，执行率统计将在录入后生成');
 
-    const btn = $('#btnAddAct');
-    if (btn && !btn.dataset.bound) {
-      btn.dataset.bound = '1';
-      btn.onclick = () => {
+    /* 手工录入：入口在标题右侧，弹窗填写，不占页面空间 */
+    bindActModal();
+  }
+
+  /* ---------------- 手工录入弹窗 ---------------- */
+  function openActModal() {
+    const m = $('#actModal');
+    if (!m) return;
+    m.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    const t = $('#actText');
+    if (t) setTimeout(() => t.focus(), 30);
+  }
+
+  function closeActModal() {
+    const m = $('#actModal');
+    if (!m) return;
+    m.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  let actModalBound = false;
+  function bindActModal() {
+    const open = $('#btnOpenAct');
+    if (open && !open.dataset.bound) {
+      open.dataset.bound = '1';
+      open.onclick = openActModal;
+    }
+    if (actModalBound) return;
+    actModalBound = true;
+
+    const mask = $('#actModal');
+    if (!mask) return;
+    const close = $('#actModalClose');
+    const cancel = $('#actModalCancel');
+    if (close) close.onclick = closeActModal;
+    if (cancel) cancel.onclick = closeActModal;
+    /* 点遮罩关闭，点弹窗本体不关 */
+    mask.onclick = e => { if (e.target === mask) closeActModal(); };
+    /* Esc 关闭 */
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && mask.classList.contains('open')) closeActModal();
+    });
+
+    const submit = $('#btnAddAct');
+    if (submit) {
+      submit.onclick = () => {
         const text = $('#actText').value.trim();
-        if (!text) { alert('请填写动作内容'); return; }
+        if (!text) { alert('请填写动作内容'); $('#actText').focus(); return; }
         addAct(text, $('#actDim').value, $('#actStu').value.trim() || '全班', $('#actDue').value, 'manual');
         $('#actText').value = ''; $('#actStu').value = ''; $('#actDue').value = '';
+        closeActModal();
         renderActions();
       };
     }

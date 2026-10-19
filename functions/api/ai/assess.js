@@ -116,21 +116,21 @@ function hardPlan(role) {
   return {
     theoryIds: ['T3', 'T6'],
     steps: [
-      { t:'立即上报（今天内）', d:'第一时间告知学校心理教师与分管领导，不要自行判断严重程度，也不要承诺保密。' },
-      { t:'不让学生独处', d:'安排可信赖的同伴或教师陪伴，避免其单独留在教室、宿舍或卫生间等场所。' },
-      { t:'通知监护人', d:'用平静、客观的语言告知家长观察到的情况，请家长配合到校沟通，避免指责学生。' },
-      { t:'移交专业处理', d:'后续评估与辅导交由心理教师与专业机构，班主任负责配合观察与信息同步。' }
+      { t:'立即上报（今天内）', d:'第一时间告知学校心理教师与分管领导，不要自行判断严重程度，也不要承诺保密。', p:'P1' },
+      { t:'不让学生独处', d:'安排可信赖的同伴或教师陪伴，避免其单独留在教室、宿舍或卫生间等场所。', p:'P1' },
+      { t:'通知监护人', d:'用平静、客观的语言告知家长观察到的情况，请家长配合到校沟通，避免指责学生。', p:'P1' },
+      { t:'移交专业处理', d:'后续评估与辅导交由心理教师与专业机构，班主任负责配合观察与信息同步。', p:'P2' }
     ],
     teacher: {
       studentSummary: '规则引擎已硬命中高危信号，该生当前处于需立即响应的状态。班主任的首要职责是上报、陪伴与通知家长，而非自行辅导。',
       immediate: [
-        { t:'今天内上报心理教师', d:'当面或电话告知心理教师，说明原始记录内容，不加工、不淡化。' },
-        { t:'安排陪伴', d:'指定一名可靠同伴与一名教师负责当日陪伴，避免其独处。' },
-        { t:'通知监护人', d:'联系家长到校沟通，用客观描述代替评价性语言（如"最近他提到过很累、不想继续"，而非"他心理有问题"）。' }
+        { t:'今天内上报心理教师', d:'当面或电话告知心理教师，说明原始记录内容，不加工、不淡化。', p:'P1' },
+        { t:'安排陪伴', d:'指定一名可靠同伴与一名教师负责当日陪伴，避免其独处。', p:'P1' },
+        { t:'通知监护人', d:'联系家长到校沟通，用客观描述代替评价性语言（如"最近他提到过很累、不想继续"，而非"他心理有问题"）。', p:'P1' }
       ],
       classroomAdjust: [
-        { t:'暂停一切学业施压', d:'该生本周的作业量与考试要求暂缓，不公开点名、不催交作业、不在班级中讨论其情况。' },
-        { t:'座位与同伴安排', d:'调整到靠近教师、与关系稳定同伴相邻的位置，便于自然观察。' }
+        { t:'暂停一切学业施压', d:'该生本周的作业量与考试要求暂缓，不公开点名、不催交作业、不在班级中讨论其情况。', p:'P1' },
+        { t:'座位与同伴安排', d:'调整到靠近教师、与关系稳定同伴相邻的位置，便于自然观察。', p:'P2' }
       ],
       homeContact: '与家长沟通时先陈述事实与关心，再说明学校已启动的支持措施，避免让家长感到被指责；请家长近期尽量保证晚间陪伴与睡眠监督。',
       watchFor: [
@@ -193,19 +193,28 @@ ${COMMON}
   "level": "green|yellow|red",
   "riskType": "简短中文短语",
   "evidence": ["逐条引用具体信号"],
-  "steps": [{"t":"动作标题","d":"具体做法"}],
+  "steps": [{"t":"动作标题","d":"具体做法","p":"P1|P2|P3"}],
   "theoryIds": ["T1"],
   "talk": ["班主任可直接说的话"],
   "teacher": {
     "studentSummary": "一句话说明该生当前状态（班主任视角）",
-    "immediate": [{"t":"本周内可做的事","d":"具体怎么做"}],
-    "classroomAdjust": [{"t":"课堂/班级层面调整","d":"具体做法"}],
+    "immediate": [{"t":"本周内可做的事","d":"具体怎么做","p":"P1|P2|P3"}],
+    "classroomAdjust": [{"t":"课堂/班级层面调整","d":"具体做法","p":"P1|P2|P3"}],
     "homeContact": "家校沟通要点（一段话）",
     "watchFor": ["需要留意的具体观察指标"],
     "talk": ["可直接使用的话术"]
   }
 }
-steps 与 teacher.immediate 各 3~4 条；watchFor 3~5 条；talk 2~3 条。`;
+steps 与 teacher.immediate 各 3~4 条；watchFor 3~5 条；talk 2~3 条。
+
+【优先级 p 的判定标准（每条动作必填，不得省略）】
+班主任要拿着这些动作直接排日程，所以必须区分先后，不能都标成高优先级。
+- P1 紧急：48 小时内必须完成。涉及安全、危机、已发生的冲突或需上报的事项。
+  对红色学生，上报与陪伴类动作必为 P1；对绿色学生不应出现 P1。
+- P2 重要：本周内应完成。直接改善该生当前状态的调整（作业量、座位、提问方式、家校沟通）。
+- P3 常规：可排期。长期习惯培养、氛围建设、预防性动作。
+同一批动作里 P1 控制在 1~2 条，必须至少保留 1 条 P3。
+如果该生风险等级是 green，全部动作不得标 P1。`;
 
 const PROMPT_COUNSELOR = `你是"乡育心桥"的学校心理教师助手。使用者是持证/专职心理教师，具备专业判断力。
 
@@ -241,6 +250,22 @@ function strArr(a, n, len) {
 function objArr(a, n, tLen, dLen) {
   return Array.isArray(a)
     ? a.slice(0, n).map(s => ({ t: String((s && s.t) || '').slice(0, tLen || 40), d: String((s && s.d) || '').slice(0, dLen || 300) }))
+    : [];
+}
+
+/* 带优先级的动作：p 只接受 P1/P2/P3 */
+const PRIORITIES = ['P1', 'P2', 'P3'];
+function normalizePriority(v) {
+  const s = String(v || '').toUpperCase().replace(/[^P123]/g, '');
+  return PRIORITIES.indexOf(s) !== -1 ? s : 'P2';
+}
+function actArr(a, n, tLen, dLen) {
+  return Array.isArray(a)
+    ? a.slice(0, n).map(s => ({
+        t: String((s && s.t) || '').slice(0, tLen || 40),
+        d: String((s && s.d) || '').slice(0, dLen || 400),
+        p: normalizePriority(s && s.p)
+      }))
     : [];
 }
 
@@ -342,7 +367,7 @@ export async function onRequestPost({ request, env }) {
     ok: true, engine: 'llm', role, level,
     riskType: String(parsed.riskType || '一般情绪/学业压力').slice(0, 60),
     evidence: strArr(parsed.evidence, 6, 300),
-    steps: objArr(parsed.steps, 6, 40, 400),
+    steps: actArr(parsed.steps, 6, 40, 400),
     theoryIds: Array.isArray(parsed.theoryIds) ? parsed.theoryIds.filter(x => /^T\d+$/.test(String(x))).slice(0, 3) : [],
     talk: strArr(parsed.talk, 4, 300),
     ruleHits,
@@ -367,8 +392,8 @@ export async function onRequestPost({ request, env }) {
     const t = parsed.teacher || {};
     resp.teacher = {
       studentSummary: String(t.studentSummary || '').slice(0, 400),
-      immediate: objArr(t.immediate, 5, 40, 400),
-      classroomAdjust: objArr(t.classroomAdjust, 5, 40, 400),
+      immediate: actArr(t.immediate, 5, 40, 400),
+      classroomAdjust: actArr(t.classroomAdjust, 5, 40, 400),
       homeContact: String(t.homeContact || '').slice(0, 500),
       watchFor: strArr(t.watchFor, 6, 200),
       talk: strArr(t.talk, 4, 300)

@@ -72,6 +72,91 @@ RB.engine = (function () {
   }
 
   /* ---------- 通道四：方案生成（通用 steps，双角色共用） ---------- */
+  /* ---------- 优先级判级（本地兜底） ----------
+   * 服务端大模型会给每条动作标 p，但服务端不可达时走本地引擎，
+   * 本地必须也能给出等级，否则台账会出现一堆无等级的动作。
+   * 判级依据：风险等级 + 动作文本里的紧急/常规语义 + 对象。
+   */
+  const PRIORITY_META = {
+    P1: { txt: 'P1 紧急', full: '紧急 · 48 小时内', cls: 'p1', rank: 0 },
+    P2: { txt: 'P2 重要', full: '重要 · 本周内',   cls: 'p2', rank: 1 },
+    P3: { txt: 'P3 常规', full: '常规 · 可排期',   cls: 'p3', rank: 2 }
+  };
+
+  /* 紧急语义：出现这些词，说明动作带有时间刚性或风险属性 */
+  const URGENT_KW = ['上报', '危机', '自伤', '自杀', '欺凌', '打架', '冲突', '安全',
+    '转介', '立即', '今天', '今日', '24小时', '48小时', '紧急', '陪伴', '监护', '家访'];
+  /* 常规语义：长期建设、预防性、氛围类 */
+  const ROUTINE_KW = ['氛围', '班会', '活动', '长期', '常规', '习惯', '宣传', '板报',
+    '预防', '培养', '鼓励参与', '集体'];
+
+  function hasAny(text, list) {
+    const s = String(text || '');
+    return list.some(k => s.indexOf(k) !== -1);
+  }
+
+  /**
+   * 给一条动作判级。
+   * @param {object} act    {t,d,dim,target}
+   * @param {string} level  该动作对应学生的风险等级 green|yellow|red
+   * @param {object} ctx    { redCount, total } 班级层面上下文
+   */
+  function gradeAction(act, level, ctx) {
+    const txt = String((act && act.t) || '') + ' ' + String((act && act.d) || '');
+    const c = ctx || {};
+
+    /* 硬规则 1：红色学生 + 上报/陪伴/监护类动作 → 必为 P1 */
+    if (level === 'red' && hasAny(txt, ['上报', '陪伴', '监护', '通知家长', '转介', '不独处'])) return 'P1';
+
+    /* 硬规则 2：绿色学生不出现 P1（无风险时标紧急会误导） */
+    if (level === 'green' && hasAny(txt, URGENT_KW)) return 'P2';
+
+    let score = 0;
+    if (level === 'red') score += 2;
+    else if (level === 'yellow') score += 1;
+
+    if (hasAny(txt, URGENT_KW)) score += 2;
+    if (hasAny(txt, ROUTINE_KW)) score -= 1;
+
+    /* 班级层面：红色人数多，班级动作整体前移 */
+    if (c.redCount > 0 && hasAny(txt, ['全班', '班级', '课堂'])) score += 1;
+
+    if (score >= 3) return 'P1';
+    if (score >= 1) return 'P2';
+    return 'P3';
+  }
+
+  /* 批量打标：保证一批动作里 P1 不超过 2 条、至少 1 条 P3 */
+  function balancePriorities(items, level, ctx) {
+    if (!items || !items.length) return items;
+    const arr = items.map(x => ({
+      t: x.t, d: x.d,
+      p: x.p || gradeAction(x, level, ctx)
+    }));
+
+    const order = { P1: 0, P2: 1, P3: 2 };
+    arr.sort((a, b) => order[a.p] - order[b.p]);
+
+    /* P1 超过 2 条时，把靠后的降为 P2 */
+    let p1 = 0;
+    arr.forEach(x => {
+      if (x.p === 'P1') {
+        p1++;
+        if (p1 > 2) x.p = 'P2';
+      }
+    });
+
+    /* 全是 P1/P2 时，把最后一条降为 P3，保留排期弹性 */
+    if (arr.length >= 3 && !arr.some(x => x.p === 'P3')) {
+      arr[arr.length - 1].p = 'P3';
+    }
+
+    /* 绿色学生全部动不得标 P1 */
+    if (level === 'green') arr.forEach(x => { if (x.p === 'P1') x.p = 'P2'; });
+
+    return arr;
+  }
+
   function buildPlan(level, riskType, theories, ctx) {
     const steps = [];
     if (level === 'red') {
@@ -96,7 +181,8 @@ RB.engine = (function () {
     if (level === 'red') {
       steps.push({ t:'转介与跟踪', d:'建议转介县级未成年人心理健康辅导中心做专业评估；此后每周一次约谈并记录变化，持续不少于 4 周。' });
     }
-    return steps;
+    /* 统一打标：本地引擎也要给每条动作定级 */
+    return balancePriorities(steps, level, ctx);
   }
 
   /* ---------- 通道五：班主任视角块（本地兜底） ---------- */
@@ -136,7 +222,12 @@ RB.engine = (function () {
       ? ['"老师注意到你最近状态不太好，我不急着问原因，先陪你把今天过完。"', '"有任何时候你觉得撑不住，可以直接来找我，我在办公室。"', '"这件事我会和心理老师一起帮你，我们一起想办法。"']
       : ['"最近感觉怎么样？不用急着回答，想说什么都行。"', '"有任何需要帮忙的地方，随时可以找我。"'];
 
-    return { studentSummary: summary, immediate, classroomAdjust, homeContact, watchFor, talk };
+    return {
+      studentSummary: summary,
+      immediate: balancePriorities(immediate, level, ctx),
+      classroomAdjust: balancePriorities(classroomAdjust, level, ctx),
+      homeContact, watchFor, talk
+    };
   }
 
   /* ---------- 通道六：心理教师视角块（本地兜底） ---------- */
@@ -269,7 +360,7 @@ RB.engine = (function () {
       ];
       talk = ['状态挺好的，继续保持。'];
     }
-    return { steps, talk };
+    return { steps: balancePriorities(steps, level, ctx), talk };
   }
 
   /* ---------- 角色化评估（本地兜底完整版） ---------- */
@@ -414,10 +505,17 @@ RB.engine = (function () {
          { t:'重点家庭单独联系', d:'对红色风险学生的家庭单独沟通，取得配合。' }]
       : [{ t:'常规家校联系', d:'在常规家校沟通中反馈学生良好表现即可。' }];
 
+    /* 班级层面动作统一打标：以班级风险等级作为 level，红色人数作为上下文 */
+    const clsCtx = { redCount: st.red || 0, total: S.length };
+    const clsLevel = st.red > 0 ? 'red' : (riskPct >= 30 ? 'yellow' : 'green');
+
     return {
       ok: true, engine: 'local', fallback: true,
       climate, climateLevel: level, narrative, causes,
-      workload, activity, classroom, home,
+      workload: balancePriorities(workload, clsLevel, clsCtx),
+      activity: balancePriorities(activity, clsLevel, clsCtx),
+      classroom: balancePriorities(classroom, clsLevel, clsCtx),
+      home: balancePriorities(home, clsLevel, clsCtx),
       focusGroups: risk.length
         ? [`需关注学生 ${risk.length} 人（占比 ${riskPct}%）`, '近期出现情绪或睡眠信号的学生']
         : ['暂无需要特别关注的学生群体'],
@@ -426,5 +524,7 @@ RB.engine = (function () {
     };
   }
 
-  return { assess, assessAsync, assessRole, classAnalyze, ruleScan, ragRetrieve, scoreQuestionnaire, studentBlock, teacherBlock, counselingBlock };
+  return { assess, assessAsync, assessRole, classAnalyze, ruleScan, ragRetrieve, scoreQuestionnaire,
+           studentBlock, teacherBlock, counselingBlock,
+           gradeAction, balancePriorities, PRIORITY_META };
 })();

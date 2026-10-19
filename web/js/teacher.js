@@ -24,18 +24,44 @@
 
   function acts() {
     const list = U.lsGet(TODO_KEY, []);
-    /* 修复历史脏数据：已存在的重复 id 就地重编，避免旧记录继续错乱 */
+    /* 修复历史脏数据：重复 id 就地重编；无 priority 的老数据补判级 */
     const seen = Object.create(null);
     let dirty = false;
     list.forEach(a => {
       if (!a || typeof a !== 'object') return;
       if (!a.id || seen[a.id]) { a.id = uid(); dirty = true; }
       seen[a.id] = 1;
+      if (!a.priority) {
+        a.priority = autoGrade(a);
+        dirty = true;
+      }
     });
     if (dirty) saveActs(list);
     return list;
   }
   function saveActs(a) { U.lsSet(TODO_KEY, a); }
+
+  /* 优先级：P1 紧急 / P2 重要 / P3 常规 */
+  const PRI = {
+    P1: { txt:'P1 紧急', cls:'p1', rank:0, hint:'48 小时内必须完成' },
+    P2: { txt:'P2 重要', cls:'p2', rank:1, hint:'本周内应完成' },
+    P3: { txt:'P3 常规', cls:'p3', rank:2, hint:'可排期' }
+  };
+  function priOf(a) { return PRI[a.priority] || PRI.P2; }
+  function priRank(a) { return priOf(a).rank; }
+
+  /* 老数据/手工兜底判级：调本地引擎规则，服务端不可达也能定级 */
+  function autoGrade(a) {
+    const eng = RB.engine;
+    if (!eng || !eng.gradeAction) return 'P2';
+    const d = RB.state.data || {};
+    const st = d.stats || {};
+    const lv = (st.red > 0) ? 'red' : (st.yellow > 0 ? 'yellow' : 'green');
+    return eng.gradeAction(
+      { t: a.text || a.t, d: a.d || '', dim: a.dim, target: a.target },
+      lv, { redCount: st.red || 0, total: st.total || 0 }
+    );
+  }
 
   /* 动作来源：决定这条台账是 AI 给的、系统提醒的，还是老师手写的。
      答辩时可据此统计「AI 建议被执行了多少」。 */
@@ -48,20 +74,25 @@
   };
   function srcOf(a) { return SRC[a.source] || SRC.manual; }
 
-  function addAct(text, dim, target, due, source) {
+  function addAct(text, dim, target, due, source, priority) {
     const a = acts();
-    a.unshift({
+    const item = {
       id: uid(),
       text: text,
       dim: dim || '作业',
       target: target || '全班',
       due: due || '',
       source: SRC[source] ? source : 'manual',
+      priority: PRI[priority] ? priority : '',
       createdAt: Date.now(),
       done: false,
       doneAt: 0
-    });
+    };
+    /* 未给定等级时用本地规则判级，保证台账里每条都有级 */
+    if (!item.priority) item.priority = autoGrade(item);
+    a.unshift(item);
     saveActs(a);
+    return item;
   }
 
   /* 切换完成状态：按 id 精确命中单条，并记录完成时间 */
@@ -78,10 +109,13 @@
   function actItem(a, opts) {
     const overdue = !a.done && a.due && new Date(a.due) < new Date(new Date().toDateString());
     const s = srcOf(a);
-    return `<div class="act-item ${a.done ? 'done' : ''} ${overdue ? 'overdue' : ''}" data-id="${a.id}">
+    const p = priOf(a);
+    return `<div class="act-item ${a.done ? 'done' : ''} ${overdue ? 'overdue' : ''} p-${p.cls}" data-id="${a.id}" data-pri="${a.priority || 'P2'}">
+      <div class="pri-flag ${p.cls}" title="${esc(p.hint)}">${esc(a.priority || 'P2')}</div>
       <div class="act-body">
         <div class="act-t">${esc(a.text)}</div>
         <div class="act-m">
+          <span class="pri-tag ${p.cls}">${esc(p.txt)}</span>
           <span class="dim-tag ${esc(a.dim)}">${esc(a.dim)}</span>
           <span class="src-tag ${s.cls}">${esc(s.txt)}</span>
           <span>对象：${esc(a.target)}</span>
@@ -279,7 +313,7 @@
       const dims = [['作业','workload'], ['活动','activity'], ['课堂','classroom'], ['家校','home']];
       let n = 0;
       dims.forEach(([dim, key]) => {
-        (r[key] || []).forEach(x => { addAct(x.t + '：' + x.d, dim, '全班', '', 'ai_class'); n++; });
+        (r[key] || []).forEach(x => { addAct(x.t + '：' + x.d, dim, '全班', '', 'ai_class', x.p); n++; });
       });
       alert('已加入 ' + n + ' 条动作到行动台账。');
       RB.route('actions');
@@ -363,8 +397,8 @@
     $('#btnClosePlan').onclick = () => host.innerHTML = '';
     $('#btnToActs').onclick = () => {
       let n = 0;
-      (t.immediate || []).forEach(x => { addAct(x.t + '：' + x.d, '个体', stu.name, '', 'ai_student'); n++; });
-      (t.classroomAdjust || []).forEach(x => { addAct(x.t + '：' + x.d, '课堂', '全班', '', 'ai_student'); n++; });
+      (t.immediate || []).forEach(x => { addAct(x.t + '：' + x.d, '个体', stu.name, '', 'ai_student', x.p); n++; });
+      (t.classroomAdjust || []).forEach(x => { addAct(x.t + '：' + x.d, '课堂', '全班', '', 'ai_student', x.p); n++; });
       alert('已加入 ' + n + ' 条动作到行动台账。');
       RB.route('actions');
     };
@@ -433,29 +467,90 @@
   }
 
   /* ---------------- 行动台账 ---------------- */
+  /* 优先级筛选：空字符串表示全部 */
+  let priFilter = '';
+
   function renderActions() {
     const a = acts();
     const today = new Date(new Date().toDateString());
-    const todo = a.filter(x => !x.done && (!x.due || new Date(x.due) >= today));
-    const overdue = a.filter(x => !x.done && x.due && new Date(x.due) < today);
-    const done = a.filter(x => x.done);
 
-    $('#actTodoCnt').textContent = todo.length + ' 条待执行';
+    /* 排序：先按优先级（P1→P3），同级按创建时间倒序，避免重要动作被淡在下面 */
+    const sortActs = list => list.slice().sort((x, y) =>
+      priRank(x) - priRank(y) || (y.createdAt || 0) - (x.createdAt || 0));
+
+    const todo = sortActs(a.filter(x => !x.done && (!x.due || new Date(x.due) >= today)));
+    const overdue = sortActs(a.filter(x => !x.done && x.due && new Date(x.due) < today));
+    const done = sortActs(a.filter(x => x.done));
+
+    const cntP = { P1:0, P2:0, P3:0 };
+    a.filter(x => !x.done).forEach(x => { const k = x.priority || 'P2'; if (cntP[k] != null) cntP[k]++; });
+
+    $('#actTodoCnt').textContent = todo.length + ' 条待执行' +
+      (cntP.P1 ? ` · ${cntP.P1} 条紧急` : '');
     $('#actOverCnt').textContent = overdue.length + ' 条已逾期';
     $('#actDoneCnt').textContent = done.length + ' 条已完成';
+
+    /* 筛选栏：三个优先级可切换，空 = 全部 */
+    const chips = [
+      { k:'',  txt:'全部', n:a.length },
+      { k:'P1', txt:'P1 紧急', n:cntP.P1 },
+      { k:'P2', txt:'P2 重要', n:cntP.P2 },
+      { k:'P3', txt:'P3 常规', n:cntP.P3 }
+    ].map(c => `<button class="pri-chip ${c.k || 'all'} ${priFilter === c.k ? 'on' : ''}"
+        data-pri-filter="${c.k}">${esc(c.txt)} <b>${c.n}</b></button>`).join('');
+    $('#actFilter').innerHTML = chips;
+
+    const applyFilter = list => priFilter ? list.filter(x => (x.priority || 'P2') === priFilter) : list;
 
     const bind = () => {
       $$('#view-actions [data-act-done]').forEach(b => b.onclick = () => {
         toggleAct(b.dataset.actDone);
         renderActions();
       });
+      $$('#view-actions [data-pri-filter]').forEach(b => b.onclick = () => {
+        priFilter = b.dataset.priFilter;
+        renderActions();
+      });
     };
 
-    $('#actTodo').innerHTML = todo.length ? todo.map(x => actItem(x, { checkable:true })).join('') : empty('暂无待执行');
-    $('#actOverdue').innerHTML = overdue.length ? overdue.map(x => actItem(x, { checkable:true })).join('') : empty('没有逾期动作');
+    $('#actTodo').innerHTML = applyFilter(todo).length
+      ? applyFilter(todo).map(x => actItem(x, { checkable:true })).join('')
+      : empty(priFilter ? '该优先级下暂无待执行' : '暂无待执行');
+    $('#actOverdue').innerHTML = applyFilter(overdue).length
+      ? applyFilter(overdue).map(x => actItem(x, { checkable:true })).join('')
+      : empty(priFilter ? '该优先级下没有逾期动作' : '没有逾期动作');
     /* 三栏均固定高度可滚动，已完成不再截断为 10 条 */
-    $('#actDone').innerHTML = done.length ? done.map(x => actItem(x, { checkable:true })).join('') : empty('暂无已完成');
+    $('#actDone').innerHTML = applyFilter(done).length
+      ? applyFilter(done).map(x => actItem(x, { checkable:true })).join('')
+      : empty(priFilter ? '该优先级下暂无已完成' : '暂无已完成');
     bind();
+
+    /* 按优先级统计：看「重要的事有没有被拖下去」 */
+    const pGroups = { P1:{ total:0, done:0, overdue:0 }, P2:{ total:0, done:0, overdue:0 }, P3:{ total:0, done:0, overdue:0 } };
+    a.forEach(x => {
+      const k = x.priority || 'P2';
+      if (!pGroups[k]) pGroups[k] = { total:0, done:0, overdue:0 };
+      pGroups[k].total++;
+      if (x.done) pGroups[k].done++;
+      else if (x.due && new Date(x.due) < today) pGroups[k].overdue++;
+    });
+    const pRows = ['P1', 'P2', 'P3'].filter(k => pGroups[k] && pGroups[k].total).map(k => {
+      const g = pGroups[k], m = PRI[k];
+      const rate = g.total ? Math.round(g.done / g.total * 100) : 0;
+      return `<tr>
+        <td><span class="pri-tag ${m.cls}">${esc(m.txt)}</span></td>
+        <td>${g.total}</td>
+        <td>${g.done}</td>
+        <td>${g.overdue ? `<b style="color:var(--red)">${g.overdue}</b>` : '0'}</td>
+        <td><b>${rate}%</b></td>
+        <td><div class="rate-bar ${m.cls}"><i style="width:${rate}%"></i></div></td>
+      </tr>`;
+    });
+    $('#actPriStat').innerHTML = pRows.length ? `
+      <table class="tb"><thead><tr>
+        <th>优先级</th><th>总数</th><th>已完成</th><th>已逾期</th><th>执行率</th><th></th>
+      </tr></thead><tbody>${pRows.join('')}</tbody></table>`
+      : empty('暂无动作记录，优先级统计将在录入后生成');
 
     /* 按来源统计执行率：这是「AI 建议是否真的被执行」的真实数据源 */
     const groups = {};
@@ -529,15 +624,86 @@
 
     const submit = $('#btnAddAct');
     if (submit) {
-      submit.onclick = () => {
+      submit.onclick = async () => {
         const text = $('#actText').value.trim();
         if (!text) { alert('请填写动作内容'); $('#actText').focus(); return; }
-        addAct(text, $('#actDim').value, $('#actStu').value.trim() || '全班', $('#actDue').value, 'manual');
+
+        const dim = $('#actDim').value;
+        const target = $('#actStu').value.trim() || '全班';
+        const due = $('#actDue').value;
+
+        /* 先让 AI 判级；服务不可达时自动回退本地规则，不阻断录入 */
+        const oldLabel = submit.textContent;
+        submit.disabled = true;
+        submit.textContent = 'AI 判级中…';
+        let pri = '';
+        try {
+          pri = await gradeByAI({ t: text, d: '', dim, target, due });
+        } catch (e) { pri = ''; }
+        submit.disabled = false;
+        submit.textContent = oldLabel;
+
+        const item = addAct(text, dim, target, due, 'manual', pri);
         $('#actText').value = ''; $('#actStu').value = ''; $('#actDue').value = '';
         closeActModal();
         renderActions();
+
+        /* 告知老师 AI 给出了什么等级，避免“不知道为什么是 P1” */
+        const m = PRI[item.priority];
+        if (m) toast(`已加入台账 · AI 判定为 ${m.txt}（${m.hint}）`);
       };
     }
+  }
+
+  /* 调服务端 AI 判级；失败返回空字符串，由 addAct 走本地规则 */
+  async function gradeByAI(act) {
+    const d = RB.state.data || {};
+    const st = d.stats || {};
+    const all = acts();
+    const today = new Date(new Date().toDateString());
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const res = await fetch('/api/ai/priority', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          actions: [act],
+          context: {
+            total: st.total || 0,
+            red: st.red || 0,
+            yellow: st.yellow || 0,
+            green: st.green || 0,
+            pendingActions: all.filter(x => !x.done).length,
+            overdueActions: all.filter(x => !x.done && x.due && new Date(x.due) < today).length
+          }
+        })
+      });
+      clearTimeout(timer);
+      const data = await res.json();
+      if (!data || data.ok !== true || !data.items || !data.items.length) return '';
+      const p = data.items[0].p;
+      return PRI[p] ? p : '';
+    } catch (e) {
+      clearTimeout(timer);
+      return '';
+    }
+  }
+
+  /* 轻量提示：不阻断操作，2.6 秒后自动消失 */
+  function toast(msg) {
+    let el = $('#rbToast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'rbToast';
+      el.className = 'rb-toast';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('show'), 2600);
   }
 
   /* ---------------- 班级报告 ---------------- */

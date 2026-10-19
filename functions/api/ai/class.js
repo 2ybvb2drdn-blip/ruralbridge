@@ -36,6 +36,22 @@ function objArr(a, n, tLen, dLen) {
     : [];
 }
 
+/* 带优先级的动作：p 只接受 P1/P2/P3，非法值由 normalizePriority 兜底 */
+const PRIORITIES = ['P1', 'P2', 'P3'];
+function normalizePriority(v) {
+  const s = String(v || '').toUpperCase().replace(/[^P123]/g, '');
+  return PRIORITIES.indexOf(s) !== -1 ? s : 'P2';
+}
+function actArr(a, n, tLen, dLen) {
+  return Array.isArray(a)
+    ? a.slice(0, n).map(s => ({
+        t: String((s && s.t) || '').slice(0, tLen || 40),
+        d: String((s && s.d) || '').slice(0, dLen || 400),
+        p: normalizePriority(s && s.p)
+      }))
+    : [];
+}
+
 const SYSTEM_PROMPT = `你是"乡育心桥"的班级管理助手，服务对象是乡村中小学班主任（非心理专业人员）。
 
 【红线】
@@ -61,14 +77,24 @@ const SYSTEM_PROMPT = `你是"乡育心桥"的班级管理助手，服务对象�
   "climateLevel": "steady|watch|alert",
   "narrative": "2~4 句的班级状态研判，说明数据说明了什么、为什么这样判断",
   "causes": [{"t":"共性诱因","d":"数据依据 + 说明"}],
-  "workload": [{"t":"动作标题","d":"具体做法（含数量/频次）"}],
-  "activity": [{"t":"动作标题","d":"具体做法（含数量/频次）"}],
-  "classroom": [{"t":"动作标题","d":"具体做法（含数量/频次）"}],
-  "home": [{"t":"动作标题","d":"具体做法（含数量/频次）"}],
+  "workload": [{"t":"动作标题","d":"具体做法（含数量/频次）","p":"P1|P2|P3"}],
+  "activity": [{"t":"动作标题","d":"具体做法（含数量/频次）","p":"P1|P2|P3"}],
+  "classroom": [{"t":"动作标题","d":"具体做法（含数量/频次）","p":"P1|P2|P3"}],
+  "home": [{"t":"动作标题","d":"具体做法（含数量/频次）","p":"P1|P2|P3"}],
   "focusGroups": ["需要重点关注的学生群体特征（不点名）"],
   "watchSignals": ["未来一周需要留意的班级层面信号"]
 }
-causes 2~4 条；四个动作维度各 2~3 条；focusGroups 2~4 条；watchSignals 2~4 条。`;
+causes 2~4 条；四个动作维度各 2~3 条；focusGroups 2~4 条；watchSignals 2~4 条。
+
+【优先级 p 的判定标准（每条动作必填，不得省略）】
+班主任精力有限，你必须帮他排出先后，不能所有动作都标成高优先级。
+- P1 紧急：48 小时内必须完成。出现红色风险学生、安全信号、已发生的冲突或危机。
+  不做会直接导致风险升级。每个维度最多 1 条 P1。
+- P2 重要：本周内应完成。直接影响学生当前状态（作业量、睡眠、同伴关系、课堂参与）。
+- P3 常规：可排期，属于长期氛围建设或预防性动作，晚一周做也不会出事。
+判定时请对照数据：班级红色人数、共性信号频次、提交覆盖率。
+如果全班没有红色学生、信号集中在个别学生，不要把班级层面动作标成 P1。
+同一批动作里，P1 建议控制在 1~2 条，P3 至少保留 1 条。`;
 
 export async function onRequestPost({ request, env }) {
   const t0 = Date.now();
@@ -154,10 +180,10 @@ export async function onRequestPost({ request, env }) {
     climateLevel: levels.indexOf(parsed.climateLevel) !== -1 ? parsed.climateLevel : 'watch',
     narrative: String(parsed.narrative || '').slice(0, 800),
     causes: objArr(parsed.causes, 5, 40, 400),
-    workload: objArr(parsed.workload, 4, 40, 400),
-    activity: objArr(parsed.activity, 4, 40, 400),
-    classroom: objArr(parsed.classroom, 4, 40, 400),
-    home: objArr(parsed.home, 4, 40, 400),
+    workload: actArr(parsed.workload, 4, 40, 400),
+    activity: actArr(parsed.activity, 4, 40, 400),
+    classroom: actArr(parsed.classroom, 4, 40, 400),
+    home: actArr(parsed.home, 4, 40, 400),
     focusGroups: strArr(parsed.focusGroups, 5, 200),
     watchSignals: strArr(parsed.watchSignals, 5, 200),
     latencyMs: Date.now() - t0,

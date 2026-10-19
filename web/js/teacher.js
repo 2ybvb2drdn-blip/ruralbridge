@@ -453,7 +453,8 @@
 
     $('#actTodo').innerHTML = todo.length ? todo.map(x => actItem(x, { checkable:true })).join('') : empty('暂无待执行');
     $('#actOverdue').innerHTML = overdue.length ? overdue.map(x => actItem(x, { checkable:true })).join('') : empty('没有逾期动作');
-    $('#actDone').innerHTML = done.length ? done.slice(0, 10).map(x => actItem(x, { checkable:true })).join('') : empty('暂无已完成');
+    /* 三栏均固定高度可滚动，已完成不再截断为 10 条 */
+    $('#actDone').innerHTML = done.length ? done.map(x => actItem(x, { checkable:true })).join('') : empty('暂无已完成');
     bind();
 
     /* 按来源统计执行率：这是「AI 建议是否真的被执行」的真实数据源 */

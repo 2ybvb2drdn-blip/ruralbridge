@@ -84,7 +84,6 @@
 
   /* ---------------- 班级概览 ---------------- */
   function renderDash() {
-    U.renderBanner($('#roleBanner'), 'teacher');
     const d = RB.state.data || { students:[], stats:{ red:0, yellow:0, green:0, submissions:0 } };
     const S = d.students || [];
     const cnt = { green:0, yellow:0, red:0 };

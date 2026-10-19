@@ -370,3 +370,149 @@ footer.site .disc { max-width:760px; margin:0 auto; padding:10px 14px; backgroun
   .ref-sheet { border:none; padding:0; }
   body { background:#fff; }
 }
+
+/* ============================================================
+ * 班级报告页
+ * 结构：班级整体直接展示 → 学生个体走独立入口（点击查看报告）
+ * ============================================================ */
+
+/* 页头：标题 + 周期切换 */
+.rep-head { display:flex; align-items:flex-start; justify-content:space-between;
+  gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+.rep-title { font-size:19px; font-weight:700; letter-spacing:.2px; }
+.rep-periods { display:inline-flex; gap:6px; padding:4px; background:#eef2f7;
+  border-radius:10px; flex:none; }
+.rep-period { border:none; background:transparent; padding:7px 16px; border-radius:7px;
+  font-size:13px; font-family:inherit; color:var(--muted); cursor:pointer;
+  transition:all .13s; font-weight:500; }
+.rep-period:hover { color:var(--ink); }
+.rep-period.on { background:#fff; color:var(--brand); font-weight:600;
+  box-shadow:0 1px 3px rgba(16,32,64,.12); }
+
+/* 指标卡：四列，比原来的三列更完整 */
+.rep-metrics { margin-bottom:4px; }
+
+/* 变化概览 */
+.rep-chg-card { padding:16px 18px; }
+.rep-chg-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+.rep-chg { text-align:center; padding:12px 8px; border-radius:10px; background:#f7f9fc;
+  border:1px solid var(--line); }
+.rep-chg .n { font-size:24px; font-weight:700; line-height:1.2; }
+.rep-chg .t { font-size:12px; color:var(--muted); margin-top:2px; }
+.rep-chg.up   { background:var(--red-bg);    border-color:#f3cfcf; }
+.rep-chg.up .n   { color:var(--red); }
+.rep-chg.down { background:var(--green-bg);  border-color:#cbe9d7; }
+.rep-chg.down .n { color:var(--green); }
+.rep-chg.flat { background:var(--yellow-bg); border-color:#f0dfbf; }
+.rep-chg.flat .n { color:var(--yellow); }
+.rep-chg.na   { background:#f2f4f6; border-color:#e2e6ea; }
+.rep-chg.na .n   { color:#8b95a1; }
+
+/* 表格里的变化标记 */
+.tr { display:inline-block; padding:1px 8px; border-radius:6px; font-size:11.5px; font-weight:600; }
+.tr.up   { background:var(--red-bg);    color:var(--red); }
+.tr.down { background:var(--green-bg);  color:var(--green); }
+.tr.flat { background:var(--yellow-bg); color:var(--yellow); }
+.tr.na   { background:#f2f4f6; color:#7a8592; }
+.tr-d { display:inline-block; margin-left:6px; font-size:11.5px; color:var(--muted); }
+
+/* 导出区 */
+.rep-export { padding:18px; }
+.rep-exp-row { display:flex; gap:10px; flex-wrap:wrap; }
+
+/* ---------------- 学生个体报告面板 ---------------- */
+.stu-rep-host { display:none; }
+.stu-rep-host.open { display:block; }
+
+.stu-rep-mask { position:fixed; inset:0; background:rgba(16,32,64,.45);
+  z-index:210; animation:fadeIn .16s ease; }
+
+.stu-rep-panel { position:fixed; top:0; right:0; bottom:0; width:min(680px,100vw);
+  background:var(--card); z-index:211; display:flex; flex-direction:column;
+  box-shadow:-8px 0 40px rgba(16,32,64,.2); animation:slideIn .22s cubic-bezier(.2,.8,.3,1); }
+
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes slideIn { from { transform:translateX(28px); opacity:.6; }
+                     to { transform:translateX(0); opacity:1; } }
+
+.stu-rep-head { display:flex; align-items:flex-start; justify-content:space-between;
+  gap:12px; padding:20px 24px 14px; border-bottom:1px solid var(--line); flex:none; }
+.stu-rep-name { font-size:17px; font-weight:700; }
+.stu-rep-name .sub { font-weight:400; font-size:12.5px; margin-left:4px; }
+
+.stu-rep-bar { display:flex; align-items:center; justify-content:space-between;
+  gap:12px; padding:12px 24px; border-bottom:1px solid var(--line);
+  flex:none; flex-wrap:wrap; background:#fbfcfe; }
+
+.stu-rep-scroll { flex:1 1 auto; min-height:0; overflow-y:auto; padding:0 24px 28px;
+  overscroll-behavior:contain; }
+.stu-rep-scroll::-webkit-scrollbar { width:7px; }
+.stu-rep-scroll::-webkit-scrollbar-thumb { background:#ccd6e2; border-radius:4px; }
+.stu-rep-scroll::-webkit-scrollbar-track { background:transparent; }
+
+/* 变化追踪主面板 */
+.stu-trend { border:1px solid var(--line); border-radius:12px; padding:16px 18px;
+  background:#fbfcfe; }
+.stu-trend.up   { border-color:#f3cfcf; background:#fffafa; }
+.stu-trend.down { border-color:#cbe9d7; background:#f7fdf9; }
+.stu-trend.flat { border-color:#f0dfbf; background:#fffdf8; }
+
+.stu-trend-main { display:flex; gap:14px; align-items:center; }
+.stu-trend-main .arrow { font-size:26px; font-weight:700; line-height:1; flex:none; }
+.stu-trend.up   .arrow { color:var(--red); }
+.stu-trend.down .arrow { color:var(--green); }
+.stu-trend.flat .arrow { color:var(--yellow); }
+.stu-trend-main .ttl { font-size:15px; font-weight:700; }
+.stu-trend.up   .ttl { color:var(--red); }
+.stu-trend.down .ttl { color:var(--green); }
+.stu-trend.flat .ttl { color:var(--yellow); }
+
+.stu-trend-meta { display:flex; gap:22px; margin-top:14px; padding-top:12px;
+  border-top:1px dashed var(--line); flex-wrap:wrap; }
+.stu-trend-meta > div { display:flex; flex-direction:column; gap:2px; }
+.stu-trend-meta span { font-size:11.5px; color:var(--muted); }
+.stu-trend-meta b { font-size:13px; }
+
+/* 时间线 */
+.stu-tl-item { display:flex; gap:12px; position:relative; padding-bottom:18px; }
+.stu-tl-item:last-child { padding-bottom:0; }
+/* 竖线：最后一个节点不画 */
+.stu-tl-item::before { content:''; position:absolute; left:5px; top:14px; bottom:0;
+  width:1px; background:var(--line); }
+.stu-tl-item:last-child::before { display:none; }
+.stu-tl-item .dot { width:11px; height:11px; border-radius:50%; flex:none;
+  margin-top:5px; background:#c3ccd6; border:2px solid #fff;
+  box-shadow:0 0 0 1px var(--line); z-index:1; }
+.stu-tl-item.red    .dot { background:var(--red); }
+.stu-tl-item.yellow .dot { background:var(--yellow); }
+.stu-tl-item.green  .dot { background:var(--green); }
+
+.stu-tl-item .body { flex:1; min-width:0; background:#fbfcfe; border:1px solid var(--line);
+  border-radius:10px; padding:11px 14px; }
+.stu-tl-item .head { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  font-size:12px; color:var(--muted); }
+.stu-tl-item .head .type { font-weight:600; color:var(--ink); }
+.stu-tl-item .head .when { margin-left:auto; font-size:11.5px; }
+.stu-tl-item .sig { margin-top:6px; font-size:13px; font-weight:600; }
+.stu-tl-item .evi { margin:6px 0 0 18px; padding:0; font-size:12.5px; color:var(--muted); }
+.stu-tl-item .evi li { margin:2px 0; }
+.stu-tl-item .raw { margin-top:8px; padding:8px 10px; background:#fff;
+  border-left:2px solid var(--line); border-radius:4px;
+  font-size:12.5px; color:#4a5563; white-space:pre-wrap; }
+
+/* 移动端：面板占满 */
+@media (max-width:620px) {
+  .stu-rep-panel { width:100vw; }
+  .stu-rep-head, .stu-rep-bar { padding-left:16px; padding-right:16px; }
+  .stu-rep-scroll { padding:0 16px 24px; }
+  .rep-chg-grid { grid-template-columns:repeat(2,1fr); }
+  .rep-head { flex-direction:column; }
+}
+
+/* 打印：隐藏交互控件，报告正文保留 */
+@media print {
+  .rep-periods, .rep-exp-row, .stu-rep-mask, .stu-rep-bar { display:none !important; }
+  .stu-rep-panel { position:static; width:100%; box-shadow:none; }
+  .stu-rep-scroll { overflow:visible; padding:0; }
+  .card { break-inside:avoid; }
+}

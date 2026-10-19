@@ -707,52 +707,254 @@
   }
 
   /* ---------------- 班级报告 ---------------- */
+  /* 报告周期：week | month | all */
+  let repPeriod = 'week';
+
   function renderReport() {
     const d = RB.state.data || { students:[], stats:{ red:0, yellow:0, green:0, submissions:0 } };
     const S = d.students || [];
-    const risk = S.filter(s => s.level !== 'green').sort((a, b) => b.score - a.score);
+    const R = RB.report;
+    const p = R.periodOf(repPeriod);
+    const cs = R.classSummary(p.days);
     const a = acts();
 
+    /* 周期切换 */
+    const periodBar = ['week', 'month', 'all'].map(k => {
+      const it = R.periodOf(k);
+      return `<button class="rep-period ${repPeriod === k ? 'on' : ''}" data-rep-period="${k}">${esc(it.label)}</button>`;
+    }).join('');
+
+    /* 变化概览 */
+    const changeCells = [
+      { n: cs.up,   t: '风险上升', cls: 'up' },
+      { n: cs.down, t: '风险下降', cls: 'down' },
+      { n: cs.flat, t: '等级持平', cls: 'flat' },
+      { n: cs.insufficient, t: '样本不足', cls: 'na' }
+    ].map(c => `<div class="rep-chg ${c.cls}"><div class="n">${c.n}</div><div class="t">${esc(c.t)}</div></div>`).join('');
+
+    /* 学生清单：全员，带个体报告入口 */
+    const rows = S.map(s => {
+      const list = R.subsOf(s.user, p.days);
+      const tr = R.trendOf(list);
+      const trHtml = tr
+        ? `<span class="tr ${tr.dir}">${esc(tr.txt)}</span><span class="tr-d">${esc(LV[tr.from].short)}→${esc(LV[tr.to].short)}</span>`
+        : `<span class="tr na">样本不足</span>`;
+      return `<tr>
+        <td>${esc(s.user)}</td>
+        <td><b>${esc(s.name)}</b></td>
+        <td>${pill(s.level)}</td>
+        <td>${s.score}</td>
+        <td>${(s.tags || []).map(t => '<span class="rule-tag">' + esc(t) + '</span>').join('') || '—'}</td>
+        <td>${list.length} 次</td>
+        <td>${trHtml}</td>
+        <td class="acts">
+          <button class="btn sm rep-open" data-rep-stu="${esc(s.user)}">查看报告</button>
+        </td>
+      </tr>`;
+    }).join('');
+
     $('#classReport').innerHTML = `
-      <div class="grid g3">
-        ${metric('red', d.stats.red, '红色 · 需干预')}
-        ${metric('yellow', d.stats.yellow, '黄色 · 需关注')}
-        ${metric('', d.stats.submissions, '累计提交次数')}
+      <div class="rep-head">
+        <div>
+          <div class="rep-title">${esc(R.klassName())} · 班级心理健康报告</div>
+          <div class="sub" style="margin:2px 0 0">数据来源：学生真实提交 · 周期内 ${cs.subsCount} 条记录，覆盖 ${cs.activeCount}/${cs.total} 人（${cs.coverage}%）</div>
+        </div>
+        <div class="rep-periods">${periodBar}</div>
       </div>
+
+      <div class="grid g4 rep-metrics">
+        ${metric('red', cs.red, '红色 · 需干预')}
+        ${metric('yellow', cs.yellow, '黄色 · 需关注')}
+        ${metric('green', cs.green, '绿色 · 状态良好')}
+        ${metric('', cs.total, '已提交人数')}
+      </div>
+
+      <div class="section-title">${esc(p.label)}变化概览</div>
+      <div class="card rep-chg-card">
+        <div class="rep-chg-grid">${changeCells}</div>
+        ${cs.insufficient ? `<div class="sub" style="margin:10px 0 0">「样本不足」指该学生在周期内提交少于 2 次，无法判断变化方向。</div>` : ''}
+      </div>
+
       <div class="section-title">班级结论</div>
       ${classInsights(d).map(i => notice(i.level, i.title, i.desc)).join('')}
-      <div class="section-title">重点学生清单（红色 + 黄色）</div>
-      <div class="card" style="padding:6px 0;overflow-x:auto">
-        <table class="tb"><thead><tr><th>账号</th><th>姓名</th><th>风险</th><th>风险分</th><th>主要信号</th><th>心理教师</th><th></th></tr></thead>
-        <tbody>${risk.length ? risk.map(s => `
-          <tr><td>${esc(s.user)}</td><td><b>${esc(s.name)}</b></td>
-          <td>${pill(s.level)}</td><td>${s.score}</td>
-          <td>${(s.tags || []).map(t => '<span class="rule-tag">' + esc(t) + '</span>').join('') || '—'}</td>
-          <td>${RB.handover.isOn(s.user) ? '<span class="pill green">已接手</span>' : '—'}</td>
-          <td class="acts"><button class="btn ghost sm" data-plan="${esc(s.user)}">支持动作</button></td></tr>`).join('')
-          : '<tr><td colspan="7">' + empty('暂无重点学生') + '</td></tr>'}
-        </tbody></table>
+
+      <div class="section-title">学生个体情况
+        <span class="sub" style="margin:0 0 0 6px;font-weight:400">点击「查看报告」进入单个学生的周报 / 月报与变化追踪</span>
       </div>
+      <div class="card" style="padding:6px 0;overflow-x:auto">
+        <table class="tb"><thead><tr>
+          <th>账号</th><th>姓名</th><th>风险</th><th>风险分</th><th>主要信号</th>
+          <th>${esc(p.label)}提交</th><th>变化</th><th></th>
+        </tr></thead>
+        <tbody>${rows || '<tr><td colspan="8">' + empty('暂无学生提交数据') + '</td></tr>'}</tbody></table>
+      </div>
+
       <div class="section-title">行动台账执行情况</div>
       <div class="grid g3">
         ${metric('', a.filter(x => !x.done).length, '待执行')}
         ${metric('', a.filter(x => x.done).length, '已完成')}
         ${metric('', a.length, '累计记录')}
       </div>
+
       <div class="section-title">导出</div>
-      <div><button class="btn ghost sm" id="expPdf">导出班级晴雨表（PDF）</button>
-           <button class="btn ghost sm" id="expXls" style="margin-left:8px">导出月度统计（Excel）</button></div>
-      <div class="sub" style="margin-top:8px">演示环境：导出使用浏览器打印 / CSV 能力模拟，线上版本由后端生成正式文件。</div>
+      <div class="card rep-export">
+        <div class="rep-exp-row">
+          <button class="btn" id="expDoc">导出班级报告（Word）</button>
+          <button class="btn ghost" id="expCsv">导出学生明细（Excel/CSV）</button>
+          <button class="btn ghost" id="expPdf">打印 / 存为 PDF</button>
+        </div>
+        <div class="sub" style="margin:10px 0 0">
+          Word 文件可直接用 Microsoft Word / WPS 打开并继续编辑；
+          导出的内容与当前所选周期（${esc(p.label)}）一致。
+        </div>
+      </div>
+
       <div class="section-title" style="color:#c62828">测试工具</div>
       <div class="card" style="border-color:#f0d0d0">
         <div class="sub" style="margin-top:0">清空全部学生提交数据（问卷 + 日常记录），用于反复测试。此操作不可恢复。</div>
         <div style="margin-top:12px"><button class="btn" id="btnReset" style="background:#c62828">重置学生数据</button></div>
       </div>`;
 
-    $$('#classReport [data-plan]').forEach(b => b.onclick = () => openTeacherPlan(b.dataset.plan));
+    $$('#classReport [data-rep-period]').forEach(b => b.onclick = () => {
+      repPeriod = b.dataset.repPeriod;
+      renderReport();
+    });
+    $$('#classReport [data-rep-stu]').forEach(b => b.onclick = () => openStudentReport(b.dataset.repStu));
+    $('#expDoc').onclick = () => RB.report.exportClassDoc(repPeriod, classInsights(d));
+    $('#expCsv').onclick = () => RB.report.exportStudentsCSV(repPeriod);
     $('#expPdf').onclick = () => window.print();
-    $('#expXls').onclick = exportCSV;
     $('#btnReset').onclick = doReset;
+  }
+
+  /* ---------------- 学生个体报告（独立入口） ---------------- */
+  let stuRepPeriod = 'week';
+
+  function openStudentReport(user) {
+    const d = RB.state.data || {};
+    const R = RB.report;
+    const stu = (d.students || []).find(x => x.user === user);
+    if (!stu) { alert('该学生暂无提交记录'); return; }
+
+    const host = $('#stuReportHost');
+    if (!host) return;
+
+    const p = R.periodOf(stuRepPeriod);
+    const list = R.subsOf(user, p.days);
+    const all = R.subsOf(user, 0);
+    const sm = R.summarize(list);
+    /* 变化追踪必须与所选周期一致，否则会出现「本周 1 次提交、样本数 2 次」的矛盾 */
+    const tr = R.trendOf(list);
+
+    const periodBar = ['week', 'month', 'all'].map(k => {
+      const it = R.periodOf(k);
+      return `<button class="rep-period ${stuRepPeriod === k ? 'on' : ''}" data-stu-period="${k}">${esc(it.label)}</button>`;
+    }).join('');
+
+    /* 变化面板：样本不足时如实说明，不编趋势 */
+    let trendHtml;
+    if (!tr) {
+      const hint = list.length < 2 && all.length >= 2
+        ? `该学生在${esc(p.label)}内只有 ${list.length} 条记录，切到「月」或「全部」可看更早的记录并判断变化。`
+        : `该学生累计只有 ${all.length} 条记录。至少需要 2 次提交才能对比等级与风险分的变化。`;
+      trendHtml = `<div class="notice info"><div>
+        <div class="ttl">${esc(p.label)}内提交不足 2 次，暂无法判断变化</div>
+        <div>${hint}</div>
+      </div></div>`;
+    } else {
+      const cls = tr.dir === 'up' ? 'red' : (tr.dir === 'down' ? 'green' : 'yellow');
+      const arrow = tr.dir === 'up' ? '↗' : (tr.dir === 'down' ? '↘' : '→');
+      trendHtml = `
+        <div class="stu-trend ${tr.dir}">
+          <div class="stu-trend-main">
+            <div class="arrow">${arrow}</div>
+            <div>
+              <div class="ttl">${esc(tr.txt)}</div>
+              <div class="sub" style="margin:2px 0 0">
+                ${esc(LV[tr.from].short)}（${tr.scoreFrom} 分） → ${esc(LV[tr.to].short)}（${tr.scoreTo} 分）
+                · 风险分${tr.scoreDelta > 0 ? '上升' : (tr.scoreDelta < 0 ? '下降' : '持平')} ${Math.abs(tr.scoreDelta)}
+              </div>
+            </div>
+          </div>
+          <div class="stu-trend-meta">
+            <div><span>首次记录</span><b>${esc(R.fmtDate(tr.firstAt))}</b></div>
+            <div><span>最近记录</span><b>${esc(R.fmtDate(tr.lastAt))}</b></div>
+            <div><span>样本数</span><b>${tr.samples} 次</b></div>
+          </div>
+        </div>`;
+    }
+
+    /* 时间线：旧 → 新，直观看到变化 */
+    const timeline = all.slice().reverse().map(s => `
+      <div class="stu-tl-item ${s.level}">
+        <div class="dot"></div>
+        <div class="body">
+          <div class="head">
+            <span class="pill ${s.level}">${esc(LV[s.level].txt)}</span>
+            <span class="type">${s.type === 'questionnaire' ? '心理问卷' : '日常记录'}</span>
+            <span class="score">风险分 ${s.score}</span>
+            <span class="when">${esc(R.fmtTime(s.createdAt))}</span>
+          </div>
+          <div class="sig">${esc(s.riskType || '—')}</div>
+          ${(s.evidence || []).length
+            ? `<ul class="evi">${s.evidence.slice(0, 4).map(e => '<li>' + esc(e) + '</li>').join('')}</ul>`
+            : ''}
+          ${s.text ? `<div class="raw">${esc(String(s.text).slice(0, 200))}</div>` : ''}
+        </div>
+      </div>`).join('');
+
+    host.innerHTML = `
+      <div class="stu-rep-mask" data-stu-close></div>
+      <div class="stu-rep-panel">
+        <div class="stu-rep-head">
+          <div>
+            <div class="stu-rep-name">${esc(stu.name)}<span class="sub">（${esc(stu.user)}）</span></div>
+            <div class="sub" style="margin:2px 0 0">当前：${esc(LV[stu.level].txt)} · 风险分 ${stu.score} · 累计 ${all.length} 条记录</div>
+          </div>
+          <button class="modal-x" data-stu-close aria-label="关闭">×</button>
+        </div>
+
+        <div class="stu-rep-bar">
+          <div class="rep-periods">${periodBar}</div>
+          <button class="btn sm" id="expStuDoc">导出该生报告（Word）</button>
+        </div>
+
+        <div class="stu-rep-scroll">
+          <div class="section-title" style="margin-top:14px">${esc(p.label)}汇总</div>
+          <div class="grid g4">
+            ${metric('', sm.count, '周期内提交')}
+            ${metric('', sm.byType.questionnaire, '问卷次数')}
+            ${metric('', sm.byType.record, '日常记录')}
+            ${metric(sm.worst === 'red' ? 'red' : (sm.worst === 'yellow' ? 'yellow' : 'green'), sm.avgScore, '平均风险分')}
+          </div>
+          ${sm.count === 0 ? `<div class="notice info" style="margin-top:12px"><div>
+            <div class="ttl">该周期内没有提交记录</div>
+            <div>可切换到「月」或「全部」查看更早的记录。</div></div></div>` : ''}
+
+          <div class="section-title">变化追踪</div>
+          ${trendHtml}
+
+          <div class="section-title">历史提交记录</div>
+          ${timeline || empty('暂无提交记录')}
+        </div>
+      </div>`;
+
+    host.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    $$('#stuReportHost [data-stu-close]').forEach(el => el.onclick = closeStudentReport);
+    $$('#stuReportHost [data-stu-period]').forEach(b => b.onclick = () => {
+      stuRepPeriod = b.dataset.stuPeriod;
+      openStudentReport(user);
+    });
+    $('#expStuDoc').onclick = () => RB.report.exportStudentDoc(user, stuRepPeriod);
+  }
+
+  function closeStudentReport() {
+    const host = $('#stuReportHost');
+    if (!host) return;
+    host.classList.remove('open');
+    host.innerHTML = '';
+    document.body.style.overflow = '';
   }
 
   async function doReset() {
@@ -792,6 +994,9 @@
   }
 
   /* ---------------- 注册 ---------------- */
+  /* 供报告层读取台账（report.js 用） */
+  RB.actions = { all: acts, save: saveActs, priority: priOf };
+
   RB.views['teacher:dash'] = renderDash;
   RB.views['teacher:classai'] = renderClassAI;
   RB.views['teacher:students'] = renderStudents;

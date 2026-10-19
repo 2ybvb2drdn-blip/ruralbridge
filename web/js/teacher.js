@@ -13,21 +13,54 @@
   const TODO_KEY = 'rb_actions';
 
   /* ---------------- 行动台账 ---------------- */
-  function acts() { return U.lsGet(TODO_KEY, []); }
+  /* 唯一 id：原先用 'a' + Date.now()，AI 研判批量加入时同一毫秒生成多条，
+     造成 id 重复 → 「完成」只改到第一条，其余行看起来「点完又回来」。 */
+  let idSeq = 0;
+  function uid() {
+    idSeq = (idSeq + 1) % 1296;                       // 36^2，一轮内不撞
+    return 'a' + Date.now().toString(36) + idSeq.toString(36).padStart(2, '0')
+           + Math.random().toString(36).slice(2, 6);
+  }
+
+  function acts() {
+    const list = U.lsGet(TODO_KEY, []);
+    /* 修复历史脏数据：已存在的重复 id 就地重编，避免旧记录继续错乱 */
+    const seen = Object.create(null);
+    let dirty = false;
+    list.forEach(a => {
+      if (!a || typeof a !== 'object') return;
+      if (!a.id || seen[a.id]) { a.id = uid(); dirty = true; }
+      seen[a.id] = 1;
+    });
+    if (dirty) saveActs(list);
+    return list;
+  }
   function saveActs(a) { U.lsSet(TODO_KEY, a); }
 
   function addAct(text, dim, target, due) {
     const a = acts();
     a.unshift({
-      id: 'a' + Date.now(),
+      id: uid(),
       text: text,
       dim: dim || '作业',
       target: target || '全班',
       due: due || '',
       createdAt: Date.now(),
-      done: false
+      done: false,
+      doneAt: 0
     });
     saveActs(a);
+  }
+
+  /* 切换完成状态：按 id 精确命中单条，并记录完成时间 */
+  function toggleAct(id) {
+    const list = acts();
+    const t = list.find(x => x.id === id);
+    if (!t) return false;
+    t.done = !t.done;
+    t.doneAt = t.done ? Date.now() : 0;
+    saveActs(list);
+    return true;
   }
 
   function actItem(a, opts) {
@@ -100,20 +133,33 @@
         <div>${esc(s.riskType || '—')} · ${ts(s.createdAt)}</div>
       </div></div>`).join('') : empty('暂无提交记录');
 
-    /* 今日待办：未完成台账 + 自动建议 */
-    const open = acts().filter(a => !a.done);
+    /* 今日待办：未完成台账 + 自动建议
+       注意：自动建议必须与台账去重——否则同一条任务会同时以「AI 建议」和
+       「台账条目」两种身份出现，点完成后台账行消失、建议行还在，看起来像「又冒出来」。 */
+    const ledger = acts();
+    const open = ledger.filter(a => !a.done);
+    /* 去重只看「今天仍有意义」的台账：未完成的，或今天刚完成的。
+       隔天如果学生仍未提交，建议应该重新出现。 */
+    const today0 = new Date(new Date().toDateString()).getTime();
+    const takenText = Object.create(null);
+    ledger.forEach(a => {
+      const alive = !a.done || (a.doneAt && a.doneAt >= today0);
+      if (alive) takenText[String(a.text || '').trim()] = 1;
+    });
+
     const auto = [];
     if (cnt.red > 0) auto.push({ t:`红色学生 ${cnt.red} 人需今日上报`, d:'第一时间告知心理教师与分管领导，不要自行判断严重程度。', dim:'个体', target:'红色学生' });
     const missing = Math.max(0, 5 - total);
     if (missing > 0) auto.push({ t:`仍有 ${missing} 名学生未提交`, d:'课间或放学前提醒完成问卷，避免数据缺口影响研判。', dim:'个体', target:'未提交学生' });
+    const autoFresh = auto.filter(a => !takenText[a.t.trim()]);
 
     const todoHtml = [
-      auto.length ? auto.map(a => `<div class="act-item"><div class="act-body">
+      autoFresh.length ? autoFresh.map(a => `<div class="act-item"><div class="act-body">
         <div class="act-t">${esc(a.t)}</div>
         <div class="act-m"><span class="dim-tag ${esc(a.dim)}">${esc(a.dim)}</span><span>AI 建议 · 未入台账</span></div>
       </div><div class="act-ops"><button class="btn ghost sm" data-quick-add="${esc(a.t)}|${esc(a.dim)}|${esc(a.target)}">加入台账</button></div></div>`).join('') : '',
       open.length ? open.slice(0, 5).map(a => actItem(a, { checkable:true })).join('') : ''
-    ].filter(Boolean).join('') || empty('暂无待办。可从「班级研判」生成行动清单。');
+    ].filter(Boolean).join('') || empty('今日待办已清空。');
 
     $('#dashTodo').innerHTML = todoHtml;
 
@@ -123,10 +169,7 @@
       renderDash();
     });
     $$('#dashTodo [data-act-done]').forEach(b => b.onclick = () => {
-      const a = acts();
-      const t = a.find(x => x.id === b.dataset.actDone);
-      if (t) t.done = !t.done;
-      saveActs(a);
+      toggleAct(b.dataset.actDone);
       renderDash();
     });
 
@@ -389,10 +432,7 @@
 
     const bind = () => {
       $$('#view-actions [data-act-done]').forEach(b => b.onclick = () => {
-        const list = acts();
-        const t = list.find(x => x.id === b.dataset.actDone);
-        if (t) t.done = !t.done;
-        saveActs(list);
+        toggleAct(b.dataset.actDone);
         renderActions();
       });
     };

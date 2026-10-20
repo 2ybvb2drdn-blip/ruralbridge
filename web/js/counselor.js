@@ -69,7 +69,7 @@
     }
     $('#planBody').innerHTML = `
       <div class="sub">从下列学生中选择一人，生成专业研判（个案概念化 / 心理机制 / 辅导技术 / 会谈计划 / 风险研判与转介）。</div>
-      <div class="grid g3" style="margin-top:12px">
+      <div class="grid g3 scroll-box" style="margin-top:12px">
         ${S.map(s => `<button class="btn ghost" data-pick="${esc(s.user)}" style="justify-content:flex-start">
           ${esc(s.name)} · ${LV[s.level].short}</button>`).join('')}
       </div>`;

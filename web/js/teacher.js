@@ -459,7 +459,7 @@
     $('#collectDetail').innerHTML = subs.length ? `
       <table class="tb"><thead><tr>
         <th>时间</th><th>姓名</th><th>类型</th><th>风险等级</th><th>风险类型</th>
-      </tr></thead><tbody>${subs.slice(0, 40).map(s => `
+      </tr></thead><tbody>${subs.map(s => `
         <tr><td>${ts(s.createdAt)}</td><td><b>${esc(s.name)}</b></td>
         <td>${s.type === 'questionnaire' ? '心理问卷' : '日常记录'}</td>
         <td>${pill(s.level)}</td><td>${esc(s.riskType || '—')}</td></tr>`).join('')}
@@ -781,12 +781,14 @@
       <div class="section-title">学生个体情况
         <span class="sub" style="margin:0 0 0 6px;font-weight:400">点击「查看报告」进入单个学生的周报 / 月报与变化追踪</span>
       </div>
-      <div class="card" style="padding:6px 0;overflow-x:auto">
+      <div class="card" style="padding:6px 0">
+        <div class="tbl-scroll">
         <table class="tb"><thead><tr>
           <th>账号</th><th>姓名</th><th>风险</th><th>风险分</th><th>主要信号</th>
           <th>${esc(p.label)}提交</th><th>变化</th><th></th>
         </tr></thead>
         <tbody>${rows || '<tr><td colspan="8">' + empty('暂无学生提交数据') + '</td></tr>'}</tbody></table>
+        </div>
       </div>
 
       <div class="section-title">行动台账执行情况</div>

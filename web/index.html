@@ -89,11 +89,11 @@
       <div class="card" style="margin-top:16px">
         <h3>最近提交</h3>
         <div class="sub">按提交时间倒序，最新 6 条</div>
-        <div id="recent"></div>
+        <div id="recent" class="scroll-box"></div>
       </div>
 
       <div class="section-title">今日待办（AI 建议 + 行动台账）</div>
-      <div id="dashTodo"></div>
+      <div id="dashTodo" class="scroll-box"></div>
 
       <div class="section-title">快速结论</div>
       <div id="insights"></div>
@@ -120,19 +120,19 @@
         <div class="card">
           <h3>未提交名单</h3>
           <div class="sub">点击「加入待办」写入行动台账，便于持续跟进</div>
-          <div id="collectMissing"></div>
+          <div id="collectMissing" class="scroll-box"></div>
         </div>
         <div class="card">
           <h3>数据质量提示</h3>
           <div class="sub">连续同选项、单次提交等疑似敷衍作答，建议当面确认</div>
-          <div id="collectQuality"></div>
+          <div id="collectQuality" class="scroll-box"></div>
         </div>
       </div>
 
       <div class="card" style="margin-top:16px">
         <h3>提交明细</h3>
         <div class="sub">按提交时间倒序，标注类型与风险等级</div>
-        <div id="collectDetail"></div>
+        <div id="collectDetail" class="tbl-scroll"></div>
       </div>
     </section>
 
@@ -167,14 +167,16 @@
     <!-- ============ 班主任：学生名单（只给支持动作，不给机制） ============ -->
     <section class="view" id="view-students">
       <div class="section-title" id="stuTitle">学生名单与风险状态（真实提交）</div>
-      <div class="card" style="padding:6px 0;overflow-x:auto">
-        <table class="tb">
-          <thead><tr>
-            <th>账号</th><th>姓名</th><th>风险等级</th>
-            <th>风险分</th><th>主要信号</th><th>最近更新</th><th>心理教师</th><th>操作</th>
-          </tr></thead>
-          <tbody id="stuBody"></tbody>
-        </table>
+      <div class="card" style="padding:6px 0">
+        <div class="tbl-scroll">
+          <table class="tb">
+            <thead><tr>
+              <th>账号</th><th>姓名</th><th>风险等级</th>
+              <th>风险分</th><th>主要信号</th><th>最近更新</th><th>心理教师</th><th>操作</th>
+            </tr></thead>
+            <tbody id="stuBody"></tbody>
+          </table>
+        </div>
       </div>
       <div class="notice info" style="margin-top:12px">
         <div>本表按学生最近一次提交实时聚合；学生每次提交问卷或日常记录后自动刷新。点击「操作」按<b>班主任视角</b>生成支持动作——不包含心理教师的专业研判内容。</div>
@@ -193,14 +195,16 @@
       <div class="role-banner" id="queueBanner"></div>
       <div class="grid g4" id="queueMetrics"></div>
       <div class="section-title">按风险与时限排序的预警队列</div>
-      <div class="card" style="padding:6px 0;overflow-x:auto">
-        <table class="tb">
-          <thead><tr>
-            <th>优先</th><th>姓名</th><th>风险等级</th><th>风险类型</th>
-            <th>风险分</th><th>最近提交</th><th>接手状态</th><th>操作</th>
-          </tr></thead>
-          <tbody id="queueBody"></tbody>
-        </table>
+      <div class="card" style="padding:6px 0">
+        <div class="tbl-scroll">
+          <table class="tb">
+            <thead><tr>
+              <th>优先</th><th>姓名</th><th>风险等级</th><th>风险类型</th>
+              <th>风险分</th><th>最近提交</th><th>接手状态</th><th>操作</th>
+            </tr></thead>
+            <tbody id="queueBody"></tbody>
+          </table>
+        </div>
       </div>
       <div class="notice info" style="margin-top:12px">
         <div>红色个案 24 小时内须完成首次接触，黄色个案本周内完成。接手状态会同步回班主任端（班主任只看到「心理教师已接手」徽标，看不到辅导内容）。</div>
@@ -221,7 +225,7 @@
       <div class="card">
         <div class="sub" style="margin-bottom:0">每个已接手的学生一张档案卡，记录状态流转、会谈次数、复评变化与下次随访日期。</div>
       </div>
-      <div class="grid g2" id="caseGrid" style="margin-top:16px"></div>
+      <div class="grid g2 scroll-box tall" id="caseGrid" style="margin-top:16px"></div>
     </section>
 
     <!-- ============ 心理教师：心理态势 ============ -->
@@ -239,7 +243,7 @@
       <div class="card">
         <h3>危机处理流程清单</h3>
         <div class="sub">按顺序逐项确认，勾选状态保存在本地，刷新不丢失</div>
-        <div id="crisisList"></div>
+        <div id="crisisList" class="scroll-box"></div>
       </div>
 
       <div class="card" style="margin-top:16px">
@@ -264,11 +268,11 @@
       <div class="card">
         <div class="sub">输入风险类型或关键词（如「留守儿童」「社交退缩」「易激惹」），召回匹配的心理学理论条目</div>
         <input type="text" id="ragQ" placeholder="输入关键词，回车检索">
-        <div id="ragOut" style="margin-top:14px"></div>
+        <div id="ragOut" class="scroll-box" style="margin-top:14px"></div>
       </div>
 
       <div class="section-title">常用技术卡</div>
-      <div class="grid g2" id="techCards"></div>
+      <div class="grid g2 scroll-box" id="techCards"></div>
     </section>
 
     <!-- ============ 学生：心理问卷 ============ -->
@@ -323,7 +327,7 @@
       <div class="card">
         <div class="sub" style="margin-bottom:0">这里只显示你自己的提交记录与 AI 给出的自助建议，其他同学看不到你的内容。</div>
       </div>
-      <div id="mineBody" style="margin-top:14px"></div>
+      <div id="mineBody" class="scroll-box tall" style="margin-top:14px"></div>
     </section>
 
   </main>

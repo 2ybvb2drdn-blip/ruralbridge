@@ -143,7 +143,6 @@
       $('#distBar').innerHTML = notice('warning', '数据读取失败', d.error || '未知错误');
       $('#distLegend').innerHTML = '';
       $('#classMeta').innerHTML = '';
-      $('#insights').innerHTML = '';
       $('#dashTodo').innerHTML = empty('数据不可用时无法生成待办');
       return;
     }
@@ -220,9 +219,6 @@
       toggleAct(b.dataset.actDone);
       renderDash();
     });
-
-    $('#insights').innerHTML = classInsights(d).map(i =>
-      notice(i.level, i.title, i.desc)).join('');
 
     const go = $('#gotoClassAI');
     if (go) go.onclick = () => RB.route('classai');

@@ -214,7 +214,7 @@
   }
 
   /* ---- 班级报告 Word ---- */
-  function exportClassDoc(periodKey, insights) {
+  function exportClassDoc(periodKey) {
     const p = periodOf(periodKey);
     const c = classSummary(p.days);
     const d = RB.state.data || {};
@@ -240,9 +240,6 @@
         <td>${a.done ? '已完成' : (a.due ? '截止 ' + esc(a.due) : '待执行')}</td></tr>`;
     }).join('');
 
-    const insHtml = (insights || []).map(i =>
-      `<li><b>${esc(i.title)}</b>：${esc(i.desc)}</li>`).join('');
-
     const body = `
       <h1>${esc(klassName())} 心理健康状况报告</h1>
       <div class="meta">报告周期：${esc(p.label)} · 生成时间：${fmtTime(Date.now())}</div>
@@ -262,17 +259,14 @@
       </table>
       ${c.insufficient ? '<p class="k">注：样本不足指该学生在周期内提交少于 2 次，无法判断变化方向。</p>' : ''}
 
-      <h2>二、班级结论</h2>
-      <ul>${insHtml || '<li>本期暂无可归纳的结论。</li>'}</ul>
-
-      <h2>三、学生个体情况</h2>
+      <h2>二、学生个体情况</h2>
       <table>
         <tr><th>账号</th><th>姓名</th><th>当前状态</th><th>风险分</th>
             <th>主要信号</th><th>周期内提交</th><th>变化</th></tr>
         ${rows || '<tr><td colspan="7">暂无学生数据</td></tr>'}
       </table>
 
-      <h2>四、行动台账执行情况</h2>
+      <h2>三、行动台账执行情况</h2>
       ${actRows ? `<table>
         <tr><th>优先级</th><th>动作</th><th>对象</th><th>状态</th></tr>
         ${actRows}

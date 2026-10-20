@@ -224,18 +224,6 @@
     if (go) go.onclick = () => RB.route('classai');
   }
 
-  function classInsights(d) {
-    const S = d.students || [];
-    if (!S.length) return [{ level:'info', title:'等待学生提交', desc:'当前尚无学生提交数据。请用 student1~student5 账号登录并完成问卷后，此处自动汇总。' }];
-    const out = [];
-    const risk = S.filter(s => s.level !== 'green');
-    if (d.stats.red > 0) out.push({ level:'warning', title:`红色预警 ${d.stats.red} 人`, desc:'存在需干预的学生，建议今日内上报心理教师并通知监护人。' });
-    if (risk.length) out.push({ level:'warning', title:`需关注学生 ${risk.length} 人`, desc:`占已提交人数的 ${Math.round(risk.length / S.length * 100)}%，建议本周内安排单独谈话。` });
-    else out.push({ level:'info', title:'暂无风险学生', desc:'当前全部学生处于绿色状态，保持常规关注即可。' });
-    out.push({ level:'info', title:'数据实时同步', desc:`本页数据来自学生端真实提交，共 ${d.stats.submissions} 条记录，随学生填写自动更新。` });
-    return out;
-  }
-
   /* ---------------- AI 班级研判 ---------------- */
   function renderClassAI() {
     const body = $('#classAIBody');
@@ -771,9 +759,6 @@
         ${cs.insufficient ? `<div class="sub" style="margin:10px 0 0">「样本不足」指该学生在周期内提交少于 2 次，无法判断变化方向。</div>` : ''}
       </div>
 
-      <div class="section-title">班级结论</div>
-      ${classInsights(d).map(i => notice(i.level, i.title, i.desc)).join('')}
-
       <div class="section-title">学生个体情况
         <span class="sub" style="margin:0 0 0 6px;font-weight:400">点击「查看报告」进入单个学生的周报 / 月报与变化追踪</span>
       </div>
@@ -818,7 +803,7 @@
       renderReport();
     });
     $$('#classReport [data-rep-stu]').forEach(b => b.onclick = () => openStudentReport(b.dataset.repStu));
-    $('#expDoc').onclick = () => RB.report.exportClassDoc(repPeriod, classInsights(d));
+    $('#expDoc').onclick = () => RB.report.exportClassDoc(repPeriod);
     $('#expCsv').onclick = () => RB.report.exportStudentsCSV(repPeriod);
     $('#expPdf').onclick = () => window.print();
     $('#btnReset').onclick = doReset;

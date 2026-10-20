@@ -161,10 +161,11 @@
     } else {
       const seg = k => `<div class="bar-seg ${k[0]}" style="width:${(cnt[k] / total * 100).toFixed(1)}%"></div>`;
       $('#distBar').innerHTML = `<div class="bar-track">${seg('green')}${seg('yellow')}${seg('red')}</div>`;
+      /* 人数已在上方指标卡显示，此处只补百分比，不重复报数 */
       $('#distLegend').innerHTML =
-        `<span><span class="dot" style="background:var(--green)"></span>绿色 ${cnt.green} 人（${(cnt.green/total*100).toFixed(1)}%）</span>` +
-        `<span><span class="dot" style="background:var(--yellow)"></span>黄色 ${cnt.yellow} 人（${(cnt.yellow/total*100).toFixed(1)}%）</span>` +
-        `<span><span class="dot" style="background:var(--red)"></span>红色 ${cnt.red} 人（${(cnt.red/total*100).toFixed(1)}%）</span>`;
+        `<span class="pct g">绿 ${(cnt.green/total*100).toFixed(0)}%</span>` +
+        `<span class="pct y">黄 ${(cnt.yellow/total*100).toFixed(0)}%</span>` +
+        `<span class="pct r">红 ${(cnt.red/total*100).toFixed(0)}%</span>`;
     }
 
     $('#classMeta').innerHTML =
@@ -309,13 +310,12 @@
     const S = ((RB.state.data && RB.state.data.students) || []).slice();
     const tbody = $('#stuBody');
     if (!S.length) {
-      tbody.innerHTML = `<tr><td colspan="8">${empty('暂无学生提交数据')}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7">${empty('暂无学生提交数据')}</td></tr>`;
       return;
     }
     tbody.innerHTML = S.map(s => `
       <tr>
-        <td>${esc(s.user)}</td>
-        <td><b>${esc(s.name)}</b></td>
+        <td><b>${esc(s.name)}</b><div class="stu-uid">${esc(s.user)}</div></td>
         <td>${pill(s.level)}</td>
         <td>${s.score}</td>
         <td>${(s.tags || []).map(t => '<span class="rule-tag">' + esc(t) + '</span>').join('') || '—'}</td>
@@ -708,13 +708,14 @@
       return `<button class="rep-period ${repPeriod === k ? 'on' : ''}" data-rep-period="${k}">${esc(it.label)}</button>`;
     }).join('');
 
-    /* 变化概览 */
-    const changeCells = [
-      { n: cs.up,   t: '风险上升', cls: 'up' },
-      { n: cs.down, t: '风险下降', cls: 'down' },
-      { n: cs.flat, t: '等级持平', cls: 'flat' },
+    /* 变化概览：一行紧凑标签，不再占 4 个大格子 */
+    const chgParts = [
+      { n: cs.up,   t: '上升', cls: 'up' },
+      { n: cs.down, t: '下降', cls: 'down' },
+      { n: cs.flat, t: '持平', cls: 'flat' },
       { n: cs.insufficient, t: '样本不足', cls: 'na' }
-    ].map(c => `<div class="rep-chg ${c.cls}"><div class="n">${c.n}</div><div class="t">${esc(c.t)}</div></div>`).join('');
+    ].filter(c => c.n > 0 || c.cls === 'na')
+     .map(c => `<span class="chg-chip ${c.cls}"><b>${c.n}</b>${esc(c.t)}</span>`).join('');
 
     /* 学生清单：全员，带个体报告入口 */
     const rows = S.map(s => {
@@ -724,8 +725,7 @@
         ? `<span class="tr ${tr.dir}">${esc(tr.txt)}</span><span class="tr-d">${esc(LV[tr.from].short)}→${esc(LV[tr.to].short)}</span>`
         : `<span class="tr na">样本不足</span>`;
       return `<tr>
-        <td>${esc(s.user)}</td>
-        <td><b>${esc(s.name)}</b></td>
+        <td><b>${esc(s.name)}</b><div class="stu-uid">${esc(s.user)}</div></td>
         <td>${pill(s.level)}</td>
         <td>${s.score}</td>
         <td>${(s.tags || []).map(t => '<span class="rule-tag">' + esc(t) + '</span>').join('') || '—'}</td>
@@ -746,18 +746,19 @@
         <div class="rep-periods">${periodBar}</div>
       </div>
 
-      <div class="grid g4 rep-metrics">
-        ${metric('red', cs.red, '红色 · 需干预')}
-        ${metric('yellow', cs.yellow, '黄色 · 需关注')}
-        ${metric('green', cs.green, '绿色 · 状态良好')}
-        ${metric('', cs.total, '已提交人数')}
+      <div class="rep-strip">
+        <span class="rs-item red"><b>${cs.red}</b>红色</span>
+        <span class="rs-item yellow"><b>${cs.yellow}</b>黄色</span>
+        <span class="rs-item green"><b>${cs.green}</b>绿色</span>
+        <span class="rs-sep"></span>
+        <span class="rs-item total"><b>${cs.total}</b>人已提交</span>
       </div>
 
-      <div class="section-title">${esc(p.label)}变化概览</div>
-      <div class="card rep-chg-card">
-        <div class="rep-chg-grid">${changeCells}</div>
-        ${cs.insufficient ? `<div class="sub" style="margin:10px 0 0">「样本不足」指该学生在周期内提交少于 2 次，无法判断变化方向。</div>` : ''}
+      <div class="rep-chg-line">
+        <span class="chg-lbl">${esc(p.label)}变化</span>
+        ${chgParts || '<span class="chg-none">周期内提交均不足 2 次，暂无可对比的变化</span>'}
       </div>
+      ${cs.insufficient ? `<div class="sub" style="margin:6px 0 0">「样本不足」指该学生在周期内提交少于 2 次，无法判断变化方向。</div>` : ''}
 
       <div class="section-title">学生个体情况
         <span class="sub" style="margin:0 0 0 6px;font-weight:400">点击「查看报告」进入单个学生的周报 / 月报与变化追踪</span>
@@ -765,10 +766,10 @@
       <div class="card" style="padding:6px 0">
         <div class="tbl-scroll">
         <table class="tb"><thead><tr>
-          <th>账号</th><th>姓名</th><th>风险</th><th>风险分</th><th>主要信号</th>
+          <th>学生</th><th>风险</th><th>风险分</th><th>主要信号</th>
           <th>${esc(p.label)}提交</th><th>变化</th><th></th>
         </tr></thead>
-        <tbody>${rows || '<tr><td colspan="8">' + empty('暂无学生提交数据') + '</td></tr>'}</tbody></table>
+        <tbody>${rows || '<tr><td colspan="7">' + empty('暂无学生提交数据') + '</td></tr>'}</tbody></table>
         </div>
       </div>
 

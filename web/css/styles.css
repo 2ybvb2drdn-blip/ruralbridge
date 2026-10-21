@@ -268,6 +268,16 @@ footer.site .disc { max-width:760px; margin:0 auto; padding:10px 14px; backgroun
 .pri-chip:hover { border-color:#c6d4e2; color:var(--ink); }
 .pri-chip b { font-size:12px; font-weight:700; opacity:.75; }
 .pri-chip.on { background:var(--brand); border-color:var(--brand); color:#fff; }
+
+/* 今日建议区：台账顶部，与下方三栏同属一套数据 */
+.sug-card { border-left:3px solid var(--brand); }
+.sug-card h3 { display:flex; align-items:center; gap:8px; }
+.sug-cnt { font-size:12px; font-weight:600; color:var(--brand);
+  background:#eef3fb; padding:2px 8px; border-radius:6px; }
+.sug-item { border-left:2px solid #dbe4ef; background:#fbfcfe; }
+
+/* 概览页入口按钮：有逾期时变红，避免首页看不出有紧急事项 */
+#gotoActions.has-overdue { background:var(--red); border-color:var(--red); color:#fff; }
 .pri-chip.on b { opacity:.9; }
 .pri-chip.p1.on { background:#c62828; border-color:#c62828; }
 .pri-chip.p2.on { background:#b8760a; border-color:#b8760a; }

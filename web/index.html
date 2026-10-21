@@ -92,11 +92,9 @@
         <div id="recent" class="scroll-box"></div>
       </div>
 
-      <div class="section-title">今日待办（AI 建议 + 行动台账）</div>
-      <div id="dashTodo" class="scroll-box"></div>
-
-      <div style="margin-top:16px">
-        <button class="btn" id="gotoClassAI">查看 AI 班级研判与行动清单 →</button>
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" id="gotoActions">查看今日待办与行动台账 →</button>
+        <button class="btn ghost" id="gotoClassAI">查看 AI 班级研判与行动清单 →</button>
       </div>
     </section>
 
@@ -141,6 +139,12 @@
       </div>
 
       <div class="pri-filter" id="actFilter"></div>
+
+      <div class="card sug-card" style="margin-top:12px">
+        <h3>今日建议<span class="sug-cnt" id="actSuggestCnt"></span></h3>
+        <div class="sub">由当前班级数据实时推导。加入台账后即转为下方待执行动作，不重复出现</div>
+        <div id="actSuggest" class="scroll-box"></div>
+      </div>
 
       <div class="grid g3" style="margin-top:12px">
         <div class="card act-col"><h3>待执行</h3><div class="sub" id="actTodoCnt">—</div><div id="actTodo" class="act-scroll"></div></div>

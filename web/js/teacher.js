@@ -143,7 +143,6 @@
       $('#distBar').innerHTML = notice('warning', '数据读取失败', d.error || '未知错误');
       $('#distLegend').innerHTML = '';
       $('#classMeta').innerHTML = '';
-      $('#dashTodo').innerHTML = empty('数据不可用时无法生成待办');
       return;
     }
 
@@ -181,46 +180,21 @@
         <div>${esc(s.riskType || '—')} · ${ts(s.createdAt)}</div>
       </div></div>`).join('') : empty('暂无提交记录');
 
-    /* 今日待办：未完成台账 + 自动建议
-       注意：自动建议必须与台账去重——否则同一条任务会同时以「AI 建议」和
-       「台账条目」两种身份出现，点完成后台账行消失、建议行还在，看起来像「又冒出来」。 */
-    const ledger = acts();
-    const open = ledger.filter(a => !a.done);
-    /* 去重只看「今天仍有意义」的台账：未完成的，或今天刚完成的。
-       隔天如果学生仍未提交，建议应该重新出现。 */
-    const today0 = new Date(new Date().toDateString()).getTime();
-    const takenText = Object.create(null);
-    ledger.forEach(a => {
-      const alive = !a.done || (a.doneAt && a.doneAt >= today0);
-      if (alive) takenText[String(a.text || '').trim()] = 1;
-    });
-
-    const auto = [];
-    if (cnt.red > 0) auto.push({ t:`红色学生 ${cnt.red} 人需今日上报`, d:'第一时间告知心理教师与分管领导，不要自行判断严重程度。', dim:'个体', target:'红色学生' });
-    const missing = Math.max(0, 5 - total);
-    if (missing > 0) auto.push({ t:`仍有 ${missing} 名学生未提交`, d:'课间或放学前提醒完成问卷，避免数据缺口影响研判。', dim:'个体', target:'未提交学生' });
-    const autoFresh = auto.filter(a => !takenText[a.t.trim()]);
-
-    const todoHtml = [
-      autoFresh.length ? autoFresh.map(a => `<div class="act-item"><div class="act-body">
-        <div class="act-t">${esc(a.t)}</div>
-        <div class="act-m"><span class="dim-tag ${esc(a.dim)}">${esc(a.dim)}</span><span>AI 建议 · 未入台账</span></div>
-      </div><div class="act-ops"><button class="btn ghost sm" data-quick-add="${esc(a.t)}|${esc(a.dim)}|${esc(a.target)}">加入台账</button></div></div>`).join('') : '',
-      open.length ? open.slice(0, 5).map(a => actItem(a, { checkable:true })).join('') : ''
-    ].filter(Boolean).join('') || empty('今日待办已清空。');
-
-    $('#dashTodo').innerHTML = todoHtml;
-
-    $$('#dashTodo [data-quick-add]').forEach(b => b.onclick = () => {
-      const p = b.dataset.quickAdd.split('|');
-      addAct(p[0], p[1], p[2], '', 'ai_dash');
-      renderDash();
-    });
-    $$('#dashTodo [data-act-done]').forEach(b => b.onclick = () => {
-      toggleAct(b.dataset.actDone);
-      renderDash();
-    });
-
+    /* 待办已整体迁入行动台账，概览不再重复渲染列表。
+       但完全不提会让首页出现信息盲区（有逾期也看不出来），
+       所以在入口按钮上带计数：只报数字，不复述内容。 */
+    const goA = $('#gotoActions');
+    if (goA) {
+      const all = acts();
+      const td0 = new Date(new Date().toDateString());
+      const openN = all.filter(x => !x.done).length;
+      const overN = all.filter(x => !x.done && x.due && new Date(x.due) < td0).length;
+      goA.textContent = openN
+        ? `查看今日待办与行动台账（${openN} 条待办${overN ? ` · ${overN} 条逾期` : ''}）→`
+        : '查看今日待办与行动台账 →';
+      goA.classList.toggle('has-overdue', overN > 0);
+      goA.onclick = () => RB.route('actions');
+    }
     const go = $('#gotoClassAI');
     if (go) go.onclick = () => RB.route('classai');
   }
@@ -484,6 +458,36 @@
         data-pri-filter="${c.k}">${esc(c.txt)} <b>${c.n}</b></button>`).join('');
     $('#actFilter').innerHTML = chips;
 
+    /* ---- 今日建议：由当前班级数据实时推导，未入台账的才显示 ----
+       去重只看「今天仍有意义」的台账：未完成的，或今天刚完成的。
+       隔天如果学生仍未提交，建议应该重新出现。 */
+    const sd = RB.state.data || {};
+    const sS = sd.students || [];
+    const sCnt = { green:0, yellow:0, red:0 };
+    sS.forEach(s => { if (sCnt[s.level] != null) sCnt[s.level]++; });
+
+    const today0 = new Date(new Date().toDateString()).getTime();
+    const takenText = Object.create(null);
+    a.forEach(x => {
+      const alive = !x.done || (x.doneAt && x.doneAt >= today0);
+      if (alive) takenText[String(x.text || '').trim()] = 1;
+    });
+
+    const sug = [];
+    if (sCnt.red > 0) sug.push({ t:`红色学生 ${sCnt.red} 人需今日上报`, d:'第一时间告知心理教师与分管领导，不要自行判断严重程度。', dim:'个体', target:'红色学生' });
+    const missing = Math.max(0, 5 - sS.length);
+    if (missing > 0) sug.push({ t:`仍有 ${missing} 名学生未提交`, d:'课间或放学前提醒完成问卷，避免数据缺口影响研判。', dim:'个体', target:'未提交学生' });
+    const sugFresh = sug.filter(x => !takenText[x.t.trim()]);
+
+    $('#actSuggestCnt').textContent = sugFresh.length ? `${sugFresh.length} 条待处理` : '';
+    $('#actSuggest').innerHTML = sugFresh.length
+      ? sugFresh.map(x => `<div class="act-item sug-item"><div class="act-body">
+          <div class="act-t">${esc(x.t)}</div>
+          <div class="act-m"><span class="dim-tag ${esc(x.dim)}">${esc(x.dim)}</span>
+            <span>${esc(x.d)}</span></div>
+        </div><div class="act-ops"><button class="btn ghost sm" data-quick-add="${esc(x.t)}|${esc(x.dim)}|${esc(x.target)}">加入台账</button></div></div>`).join('')
+      : empty('暂无建议 · 已全部加入台账或当前数据无异常');
+
     const applyFilter = list => priFilter ? list.filter(x => (x.priority || 'P2') === priFilter) : list;
 
     const bind = () => {
@@ -493,6 +497,12 @@
       });
       $$('#view-actions [data-pri-filter]').forEach(b => b.onclick = () => {
         priFilter = b.dataset.priFilter;
+        renderActions();
+      });
+      /* 今日建议 → 加入台账：加入后建议区立即重新渲染，该条不再重复出现 */
+      $$('#actSuggest [data-quick-add]').forEach(b => b.onclick = () => {
+        const p = b.dataset.quickAdd.split('|');
+        addAct(p[0], p[1], p[2], '', 'ai_dash');
         renderActions();
       });
     };

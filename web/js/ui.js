@@ -103,6 +103,54 @@
     }
   };
 
+  /* ---------------- 等级复核：用当前规则重算入库等级 ----------------
+     背景：早期引擎版本写入的等级可能与现在的规则不一致。
+     实测线上数据出现过「问卷 q9 命中高危项、重算应为红色，库里存的是黄色」。
+
+     只标记「低估风险」这一个方向（重算比入库更严重），原因：
+     - 低估风险是安全隐患，必须让教师看到
+     - 高估风险（存黄色、重算绿色）只是保守，不影响学生安全，标出来只会变成噪声
+     - 日常记录由大模型语义判级，本地规则本就复现不了，
+       若两个方向都比，会把 LLM 的合理判断全部误报成漂移
+     实测：线上 11 条提交，两方向都比会有 7 条「漂移」（5 条是记录）；
+     只比低估方向则剩 3 条，且全部是真实的高危题漏判。
+
+     不静默改写存储值：改写会掩盖历史，是否以重算为准由教师确认。 */
+  const LV_RANK = { green: 0, yellow: 1, red: 2 };
+
+  function reconcileLevels(data) {
+    const eng = RB.engine;
+    if (!eng || typeof eng.gradeLevel !== 'function') return data;
+    if (!data || !Array.isArray(data.submissions)) return data;
+
+    let n = 0;
+    data.submissions.forEach(s => {
+      const g = eng.gradeLevel({ text: s.text || '', answers: s.answers || {} });
+      s.levelNow = g.level;
+      s.scoreNow = g.score;
+      /* 仅当重算结果比入库更严重时才算漂移 */
+      s.levelDrift = (LV_RANK[g.level] || 0) > (LV_RANK[s.level] || 0);
+      if (s.levelDrift) n++;
+    });
+
+    /* submissions 已按时间倒序，每个学生首次出现即最近一次提交 */
+    const latest = Object.create(null);
+    data.submissions.forEach(s => {
+      const k = s.user || s.name || 'unknown';
+      if (!latest[k]) latest[k] = s;
+    });
+    (data.students || []).forEach(st => {
+      const l = latest[st.user];
+      if (!l) return;
+      st.levelStored = l.level;
+      st.levelNow = l.levelNow;
+      st.levelDrift = !!l.levelDrift;
+    });
+
+    if (data.stats && typeof data.stats === 'object') data.stats.levelDrift = n;
+    return data;
+  }
+
   /* ---------------- 数据加载（教师/心理教师后台） ---------------- */
   RB.loadData = async function (force) {
     if (RB.state.data && !force) return RB.state.data;
@@ -111,7 +159,7 @@
       const res = await fetch('/api/data/list', { headers: { 'Accept':'application/json' } });
       const data = await res.json();
       if (!data || data.ok !== true) throw new Error((data && data.error) || ('HTTP ' + res.status));
-      RB.state.data = data;
+      RB.state.data = reconcileLevels(data);
     } catch (e) {
       RB.state.data = {
         ok:false, error: e.message || String(e),

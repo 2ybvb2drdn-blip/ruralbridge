@@ -288,6 +288,32 @@ RB.engine = (function () {
     return { conceptualization, mechanism, techniques, sessionPlan, riskJudgement, referral, cautions, talk };
   }
 
+  /* ---------- 轻量判级：只算等级与风险类型，不生成干预方案 ----------
+     用途：读取历史数据时用当前规则重算一遍，与入库时存的值比对，
+     发现「旧引擎写入、与当前规则不一致」的记录（等级漂移）。
+     assess() 会跑 RAG 检索 + 方案生成，拿来批量复核太重。 */
+  function gradeLevel(input) {
+    const text = (input && input.text) || '';
+    const answers = (input && input.answers) || {};
+    const ruleHits = ruleScan(text);
+    const q = scoreQuestionnaire(answers);
+    const hardRule = ruleHits.find(h => h.hard);
+
+    let level = 'green';
+    if (hardRule || q.hardHit) level = 'red';
+    else if (ruleHits.some(h => h.level === 'yellow') || q.score >= 40) level = 'yellow';
+    else if (q.score >= 25) level = 'yellow';
+
+    let riskType;
+    if (hardRule) riskType = hardRule.type;
+    else if (q.hardHit) riskType = '高危—自伤意念（问卷命中）';
+    else if (ruleHits.length) riskType = ruleHits[0].type;
+    else if (level === 'yellow') riskType = '一般情绪/学业压力';
+    else riskType = '状态平稳';
+
+    return { level, riskType, score: q.score, hardHit: q.hardHit ? q.hardHit.id : '' };
+  }
+
   /* ---------- 对外主入口：评估单个学生（通用） ---------- */
   function assess(input) {
     const t0 = performance.now();
@@ -525,6 +551,7 @@ RB.engine = (function () {
   }
 
   return { assess, assessAsync, assessRole, classAnalyze, ruleScan, ragRetrieve, scoreQuestionnaire,
+           gradeLevel,
            studentBlock, teacherBlock, counselingBlock,
            gradeAction, balancePriorities, PRIORITY_META };
 })();

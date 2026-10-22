@@ -12,6 +12,17 @@
 
   const TODO_KEY = 'rb_actions';
 
+  /* 等级单元格：入库等级 + （若与当前规则不一致）复核标记
+     早期引擎写入的历史数据可能与现规则不符（实测出现过
+     「q9 命中高危、重算应为红色，库里存黄色」），所以不能只显示存储值。 */
+  function levelCell(s) {
+    if (!s || !s.levelDrift) return pill(s.level);
+    const now = s.levelNow || s.level;
+    return pill(s.level) +
+      `<div class="lv-drift" title="按当前规则重算为「${esc(LV[now] ? LV[now].txt : now)}」，与入库时不一致，建议复核">` +
+      `复核→${esc(LV[now] ? LV[now].short : now)}</div>`;
+  }
+
   /* ---------------- 行动台账 ---------------- */
   /* 唯一 id：原先用 'a' + Date.now()，AI 研判批量加入时同一毫秒生成多条，
      造成 id 重复 → 「完成」只改到第一条，其余行看起来「点完又回来」。 */
@@ -290,7 +301,7 @@
     tbody.innerHTML = S.map(s => `
       <tr>
         <td><b>${esc(s.name)}</b><div class="stu-uid">${esc(s.user)}</div></td>
-        <td>${pill(s.level)}</td>
+        <td>${levelCell(s)}</td>
         <td>${s.score}</td>
         <td>${(s.tags || []).map(t => '<span class="rule-tag">' + esc(t) + '</span>').join('') || '—'}</td>
         <td>${esc(s.last)}</td>
@@ -480,6 +491,18 @@
             '」。建议当面确认哪一方更接近真实状态。', 'warn');
         }
       }
+      /* 5) 历史提交低估风险：入库等级比当前规则重算的轻（仅低估方向）
+         典型：问卷 q9「我想过伤害自己」命中，却存成了黄色。
+         学生名单只展示最近一次，更早的漏判在那里看不到，所以放到这里。 */
+      const under = list.filter(x => x.levelDrift);
+      if (under.length) {
+        const u0 = under[0];
+        const to = LV[u0.levelNow] ? LV[u0.levelNow].short : u0.levelNow;
+        const from = LV[u0.level] ? LV[u0.level].short : u0.level;
+        pushQ(name, '历史提交等级偏低',
+          '有 ' + under.length + ' 条提交按当前规则重算应为「' + to + '」，入库时为「' + from +
+          '」。可能为旧版引擎判定，建议复核该生风险。', 'warn');
+      }
     });
 
     /* 需关注的排在前面 */
@@ -497,7 +520,7 @@
       </tr></thead><tbody>${subs.map(s => `
         <tr><td>${ts(s.createdAt)}</td><td><b>${esc(s.name)}</b></td>
         <td>${s.type === 'questionnaire' ? '心理问卷' : '日常记录'}</td>
-        <td>${pill(s.level)}</td><td>${esc(s.riskType || '—')}</td></tr>`).join('')}
+        <td>${levelCell(s)}</td><td>${esc(s.riskType || '—')}</td></tr>`).join('')}
       </tbody></table>` : empty('暂无提交明细');
   }
 
@@ -813,7 +836,7 @@
         : `<span class="tr na">样本不足</span>`;
       return `<tr>
         <td><b>${esc(s.name)}</b><div class="stu-uid">${esc(s.user)}</div></td>
-        <td>${pill(s.level)}</td>
+        <td>${levelCell(s)}</td>
         <td>${s.score}</td>
         <td>${(s.tags || []).map(t => '<span class="rule-tag">' + esc(t) + '</span>').join('') || '—'}</td>
         <td>${list.length} 次</td>

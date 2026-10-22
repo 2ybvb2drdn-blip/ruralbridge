@@ -391,25 +391,102 @@
       alert('已加入行动台账');
     });
 
-    /* 数据质量：单次提交 / 同一学生重复相同答案 */
+    /* 数据质量：四类信号（只做提示，不改判等级，教师确认后再决定是否采信）
+       1) 仅提交 1 次       —— 样本量不足
+       2) 直线作答           —— 单次问卷所有题选同一选项
+       3) 连续问卷完全一致   —— 相邻两次问卷逐题相同
+       4) 问卷与记录矛盾     —— 问卷显示无风险，但日常记录报了风险 */
     const q = [];
-    S.forEach(s => { if (s.count === 1) q.push({ n:s.name, t:'仅提交 1 次', d:'样本量偏少，建议再收集一次以确认趋势。' }); });
-    const byUser = {};
+    const qSeen = Object.create(null);
+    const pushQ = (n, t, d, sev) => {
+      const key = n + '\u0000' + t;
+      if (qSeen[key]) return;            /* 同一学生同一类信号只报一次 */
+      qSeen[key] = 1;
+      q.push({ n, t, d, sev: sev || 'info' });
+    };
+    const eng = RB.engine || {};
+    const scoreOf = ans => (eng.scoreQuestionnaire ? eng.scoreQuestionnaire(ans).score : 0);
+    const optLabel = v => {
+      const o = (RB.QUESTIONNAIRE.options || []).find(x => x.v === v);
+      return o ? o.label : String(v);
+    };
+
+    const byUser = Object.create(null);
     subs.forEach(s => {
-      const k = s.user;
+      const k = s.user || s.name;
       if (!byUser[k]) byUser[k] = [];
       byUser[k].push(s);
     });
+
     Object.keys(byUser).forEach(k => {
-      const list = byUser[k];
-      if (list.length >= 2) {
-        const a = JSON.stringify(list[0].answers || {});
-        const b = JSON.stringify(list[1].answers || {});
-        if (a === b && a !== '{}') q.push({ n:list[0].name, t:'连续两次答案完全一致', d:'疑似敷衍作答，建议当面确认。' });
+      const list = byUser[k];                       // 已按时间倒序
+      const name = (list[0] && list[0].name) || k;
+      /* 只取真正有作答的问卷，跳过 answers 为空的日常记录 */
+      const qs = list.filter(x => x.type === 'questionnaire' &&
+        x.answers && Object.keys(x.answers).length > 0);
+
+      /* 1) 仅提交 1 次 */
+      if (list.length === 1) {
+        pushQ(name, '仅提交 1 次', '样本量偏少，建议再收集一次以确认趋势。');
+      }
+
+      /* 2) 直线作答：单次问卷所有题选同一选项（同一学生多次直线也只报一次） */
+      const straight = qs.find(x => {
+        const vals = Object.values(x.answers);
+        return vals.length >= 3 && new Set(vals).size === 1;
+      });
+      if (straight) {
+        const vals = Object.values(straight.answers);
+        const v = vals[0], lb = optLabel(v);
+        if (v >= 3) {
+          pushQ(name, '问卷全部选「' + lb + '」',
+            '全部 ' + vals.length + ' 题同选最高频选项（含高危题），几乎不可能是真实作答，建议当面核实。', 'warn');
+        } else if (v === 0) {
+          pushQ(name, '问卷全部选「' + lb + '」',
+            '全部 ' + vals.length + ' 题同选「' + lb + '」。若学生确实状态平稳可忽略；若与日常表现不符，建议当面确认。');
+        } else {
+          pushQ(name, '问卷全部选「' + lb + '」',
+            '全部 ' + vals.length + ' 题同选同一选项，疑似未逐题阅读，建议当面确认。', 'warn');
+        }
+      }
+
+      /* 3) 相邻两次问卷逐题比对（旧逻辑只比前两条，遇日常记录就永远不触发） */
+      for (let i = 0; i + 1 < qs.length; i++) {
+        const a = qs[i].answers, b = qs[i + 1].answers;
+        const ka = Object.keys(a), kb = Object.keys(b);
+        if (!ka.length || ka.length !== kb.length) continue;
+        if (ka.every(x => a[x] === b[x])) {
+          pushQ(name, '连续两次问卷答案完全一致',
+            '两次提交逐题相同，疑似凭记忆重复提交，建议当面确认。', 'warn');
+          break;
+        }
+      }
+
+      /* 4) 问卷与日常记录矛盾：问卷几乎无风险，但记录报了风险
+         口径：记录被判为黄/红，或命中规则关键词。
+         不限定必须命中关键词——学生原话「睡眠不好」并不含规则词「睡不着」，
+         但和问卷全选「完全没有」明显矛盾，正是最该提醒老师的情况。 */
+      const riskyRec = list.filter(x => x.type === 'record' && (
+        x.level === 'red' || x.level === 'yellow' ||
+        (eng.ruleScan && eng.ruleScan(x.text || '').length > 0)
+      ));
+      if (qs.length && riskyRec.length) {
+        const lowQ = qs.filter(x => scoreOf(x.answers) <= 10);
+        if (lowQ.length) {
+          const r0 = riskyRec[0];
+          const detail = String(r0.text || '').trim().slice(0, 30) || r0.riskType || '风险信号';
+          pushQ(name, '问卷与日常记录不一致',
+            '问卷综合分仅 ' + scoreOf(lowQ[0].answers) + '/100，但日常记录出现「' + detail +
+            '」。建议当面确认哪一方更接近真实状态。', 'warn');
+        }
       }
     });
+
+    /* 需关注的排在前面 */
+    q.sort((x, y) => (x.sev === 'warn' ? 0 : 1) - (y.sev === 'warn' ? 0 : 1));
+
     $('#collectQuality').innerHTML = q.length ? q.map(x =>
-      `<div class="act-item"><div class="act-body">
+      `<div class="act-item ${x.sev === 'warn' ? 'q-warn' : ''}"><div class="act-body">
         <div class="act-t">${esc(x.n)} · ${esc(x.t)}</div>
         <div class="act-m"><span>${esc(x.d)}</span></div>
       </div></div>`).join('') : empty('未发现明显的数据质量问题');

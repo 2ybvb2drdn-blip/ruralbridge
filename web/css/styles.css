@@ -240,6 +240,9 @@ footer.site .disc { max-width:760px; margin:0 auto; padding:10px 14px; backgroun
 .act-item.done .act-t { text-decoration:line-through; }
 .act-item.overdue { border-color:#f0c9c9; background:#fffafa; }
 .act-item .act-ops { flex:none; display:flex; gap:6px; }
+/* 数据质量：需当面确认的信号（直线作答 / 问卷与记录矛盾等） */
+.act-item.q-warn { border-left:3px solid #d99427; background:#fffdf7; }
+.act-item.q-warn .act-t { color:#8a6a12; }
 
 /* ---------------- 优先级分级 ---------------- */
 /* P1 紧急 / P2 重要 / P3 常规：色阶从红到灰，越急越刺眼 */

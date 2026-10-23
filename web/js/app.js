@@ -45,7 +45,7 @@
     $('#qResult').innerHTML = '';
     $('#recResult').innerHTML = '';
     $('#recText').value = '';
-    $('#qProg').textContent = '0 / 10';
+    $('#qProg').textContent = '0 / 0';
     $('#u').value = '';
     $('#p').value = '';
     $('#loginErr').textContent = '';

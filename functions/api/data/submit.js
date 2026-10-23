@@ -49,6 +49,10 @@ export async function onRequestPost({ request, env }) {
   const answers = body.answers && typeof body.answers === 'object' ? body.answers : {};
   const text = String(body.text || '').slice(0, 2000);
   const result = body.result && typeof body.result === 'object' ? body.result : {};
+  /* 问卷版本：跟着作答走，不能靠猜。
+     改版后若用新题表去算旧作答，所有题都取不到值，分数会变 0。 */
+  const qVersion = String(body.qVersion || result.qVersion || '').slice(0, 8)
+    || (type === 'questionnaire' ? 'v1' : '');
 
   if (!user) return json({ ok: false, error: '缺少 user 字段' }, 400);
   if (type === 'questionnaire' && Object.keys(answers).length === 0) {
@@ -69,8 +73,8 @@ export async function onRequestPost({ request, env }) {
   try {
     await DB.prepare(
       `INSERT INTO submissions
-        (id, user, name, type, answers, text, level, risk_type, evidence, steps, talk, rule_hits, score, engine, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (id, user, name, type, answers, text, level, risk_type, evidence, steps, talk, rule_hits, score, engine, q_version, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       id, user, name, type,
       JSON.stringify(answers), text, level,
@@ -78,6 +82,7 @@ export async function onRequestPost({ request, env }) {
       JSON.stringify(evidence), JSON.stringify(steps), JSON.stringify(talk), JSON.stringify(ruleHits),
       Number(result.score) || 0,
       String(result.engine || 'local').slice(0, 20),
+      qVersion,
       createdAt
     ).run();
   } catch (e) {

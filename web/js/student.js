@@ -14,24 +14,41 @@
     const Q = RB.QUESTIONNAIRE;
     $('#qTitle').textContent = Q.title;
     $('#qNote').textContent = Q.note;
-    $('#qItems').innerHTML = Q.items.map(it => `
-      <div class="q-item ${it.hard ? 'hard' : ''}">
-        <div class="qt">${esc(it.text)}<span class="dim">${esc(it.dim)}</span></div>
-        <div class="q-opts">${Q.options.map(o => `
-          <label><input type="radio" name="${it.id}" value="${o.v}"
-            ${RB.state.answers[it.id] === o.v ? 'checked' : ''}>${esc(o.label)}</label>`).join('')}</div>
-      </div>`).join('');
 
+    /* 按分组渲染：情绪 / 紧张担心 / 安全情况
+       安全题单独成区，避免学生把它们当成普通情绪题随手点 */
+    const groups = Q.groups || [{ part:'', title:'' }];
+    $('#qItems').innerHTML = groups.map(g => {
+      const list = Q.items.filter(it => (it.part || '') === (g.part || ''));
+      if (!list.length) return '';
+      const head = g.title
+        ? `<div class="q-group"><div class="q-group-t">${esc(g.title)}</div>` +
+          (g.note ? `<div class="q-group-n">${esc(g.note)}</div>` : '') + '</div>'
+        : '';
+      const body = list.map(it => `
+        <div class="q-item ${it.part === 'safe' ? 'hard' : ''}">
+          <div class="qt">${esc(it.text)}</div>
+          <div class="q-opts">${Q.options.map(o => `
+            <label><input type="radio" name="${it.id}" value="${o.v}"
+              ${RB.state.answers[it.id] === o.v ? 'checked' : ''}>${esc(o.label)}</label>`).join('')}</div>
+        </div>`).join('');
+      return head + body;
+    }).join('');
+
+    const prog = () => {
+      const n = Q.items.filter(it => RB.state.answers[it.id] !== undefined).length;
+      $('#qProg').textContent = n + ' / ' + Q.items.length;
+    };
     $$('#qItems input[type=radio]').forEach(r => r.onchange = () => {
       RB.state.answers[r.name] = +r.value;
-      $('#qProg').textContent = Object.keys(RB.state.answers).length + ' / ' + Q.items.length;
+      prog();
     });
-    $('#qProg').textContent = Object.keys(RB.state.answers).length + ' / ' + Q.items.length;
+    prog();
   }
 
   async function submitQuestionnaire() {
     const Q = RB.QUESTIONNAIRE;
-    const answered = Object.keys(RB.state.answers).length;
+    const answered = Q.items.filter(it => RB.state.answers[it.id] !== undefined).length;
     if (answered < Q.items.length) {
       $('#qResult').innerHTML = notice('warning', '还有题目未作答', '还剩 ' + (Q.items.length - answered) + ' 题，请完成后提交。');
       return;
@@ -40,9 +57,13 @@
     $('#btnSubmitQ').disabled = true;
     try {
       const r = await RB.engine.assessAsync({
-        answers: RB.state.answers, text: '', studentName: RB.state.user.name
+        answers: RB.state.answers, text: '', studentName: RB.state.user.name,
+        qVersion: Q.version
       }, 'student');
-      const saved = await postSubmit({ type:'questionnaire', answers: RB.state.answers, text:'', result: r });
+      const saved = await postSubmit({
+        type:'questionnaire', answers: RB.state.answers, text:'',
+        qVersion: Q.version, result: r
+      });
       $('#qResult').innerHTML = resultCard(r, '问卷提交结果', saved);
     } catch (e) {
       $('#qResult').innerHTML = notice('warning', '提交失败', e.message || String(e));

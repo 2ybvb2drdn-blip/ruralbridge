@@ -38,19 +38,87 @@ RB.engine = (function () {
     return hits;
   }
 
-  /* ---------- 通道二：问卷语义评分 ---------- */
-  function scoreQuestionnaire(answers) {
+  /* ---------- 通道二：问卷评分（支持多版本） ----------
+     版本必须跟着作答走：改版后若用新题表去算旧作答，所有题都取不到值，
+     分数会变 0，真实高危记录会被抹平成绿色。
+     识别顺序：显式传入 → 按答案键名推断 → 当前版本。 */
+  function detectVersion(answers) {
+    const k = Object.keys(answers || {});
+    if (k.some(x => /^[das]\d+$/.test(x))) return 'v2';
+    if (k.some(x => /^q\d+$/.test(x))) return 'v1';
+    return (RB.QUESTIONNAIRE && RB.QUESTIONNAIRE.version) || 'v1';
+  }
+
+  function bandOf(kind, val) {
     const Q = RB.QUESTIONNAIRE;
+    const list = (Q.bands && Q.bands[kind]) || [];
+    for (let i = 0; i < list.length; i++) if (val >= list[i].min) return list[i];
+    return { min:0, label:'无' };
+  }
+
+  /* v1（10 题）：保留原样，保证历史提交重算结果与入库时一致 */
+  function scoreV1(answers) {
+    const Q = RB.QUESTIONNAIRE_V1 || RB.QUESTIONNAIRE;
     let raw = 0, max = 0, hardHit = null, dims = {};
     Q.items.forEach(it => {
       const v = answers[it.id];
       if (v === undefined || v === null) return;
       raw += v; max += 3;
       dims[it.dim] = (dims[it.dim] || 0) + v;
-      if (it.hard && v >= 1) hardHit = it;      // 高危题命中
+      if (it.hard && v >= 1) hardHit = it;
     });
     const score = max ? Math.round(raw / max * 100) : 0;
-    return { raw, max, score, dims, hardHit };
+    return { version:'v1', raw, max, score, dims, hardHit,
+             dep:0, anx:0, depMax:0, anxMax:0, safe:{}, safeLevel:'none' };
+  }
+
+  /* v2（12 题）：抑郁 6 + 焦虑 3 分别计分，安全 3 题走独立通道、不计总分 */
+  function scoreV2(answers) {
+    const Q = RB.QUESTIONNAIRE;
+    const num = v => (typeof v === 'number' && isFinite(v) ? v : null);
+    const items = Q.items || [];
+    const depItems = items.filter(i => i.part === 'dep');
+    const anxItems = items.filter(i => i.part === 'anx');
+
+    let dep = 0, anx = 0, depN = 0, anxN = 0;
+    depItems.forEach(i => { const v = num(answers[i.id]); if (v !== null) { dep += v; depN++; } });
+    anxItems.forEach(i => { const v = num(answers[i.id]); if (v !== null) { anx += v; anxN++; } });
+
+    const depMax = depItems.length * 3;
+    const anxMax = anxItems.length * 3;
+
+    /* 安全通道：分层触发，不并入总分
+       s2 有具体方法 / s3 既往行为 → 红色（必须当日上报）
+       s1 频繁出现被动意念     → 红色
+       s1 偶尔出现被动意念     → 黄色（48 小时内跟进） */
+    const s1 = num(answers.s1), s2 = num(answers.s2), s3 = num(answers.s3);
+    let safeLevel = 'none', safeHit = null;
+    if (s2 !== null && s2 >= 1) { safeLevel = 'red'; safeHit = 's2'; }
+    else if (s3 !== null && s3 >= 1) { safeLevel = 'red'; safeHit = 's3'; }
+    else if (s1 !== null && s1 >= 2) { safeLevel = 'red'; safeHit = 's1'; }
+    else if (s1 !== null && s1 >= 1) { safeLevel = 'yellow'; safeHit = 's1'; }
+
+    const raw = dep + anx, max = depMax + anxMax;
+    const score = max ? Math.round(raw / max * 100) : 0;
+    const depBand = bandOf('dep', dep);
+    const anxBand = bandOf('anx', anx);
+
+    /* 安全通道命中时才给出 hardHit，供旧调用方兼容 */
+    const safeItem = safeHit ? items.filter(i => i.id === safeHit)[0] : null;
+
+    return {
+      version:'v2', raw, max, score,
+      dep, anx, depMax, anxMax, depBand, anxBand,
+      safe:{ s1, s2, s3 }, safeLevel, safeHit, safeItem,
+      dims:{ '抑郁':dep, '焦虑':anx },
+      hardHit: safeLevel === 'red' ? safeItem : null
+    };
+  }
+
+  function scoreQuestionnaire(answers, version) {
+    const ans = answers || {};
+    const ver = version || detectVersion(ans);
+    return ver === 'v1' ? scoreV1(ans) : scoreV2(ans);
   }
 
   /* ---------- 通道三：RAG 理论检索（关键词召回 + 打分排序） ---------- */
@@ -288,6 +356,40 @@ RB.engine = (function () {
     return { conceptualization, mechanism, techniques, sessionPlan, riskJudgement, referral, cautions, talk };
   }
 
+  /* ---------- 问卷 → 等级（按版本走各自规则） ----------
+     v1（10 题）保留原判定，保证历史提交重算结果与入库时可比；
+     v2（12 题）安全题走独立通道优先判，再比两个分量表分档。
+     关键改变：v1 是「安全题≥1 即判红」的一刀切，
+     无法区分「偶尔闪过念头」与「已有具体方法/既往行为」。 */
+  function classifyQuestionnaire(q) {
+    if (!q) return { level:'green', riskType:'状态平稳', notes:[] };
+
+    if (q.version === 'v1') {
+      if (q.hardHit) return { level:'red', riskType:'高危—自伤意念（问卷命中）', notes:[] };
+      if (q.score >= 25) return { level:'yellow', riskType:'一般情绪/学业压力', notes:[] };
+      return { level:'green', riskType:'状态平稳', notes:[] };
+    }
+
+    const notes = [];
+    const depB = q.depBand ? q.depBand.label : '无';
+    const anxB = q.anxBand ? q.anxBand.label : '无';
+    if (q.dep > 0 || q.anx > 0) {
+      notes.push('抑郁分量表 ' + q.dep + '/' + q.depMax + '（' + depB + '）、焦虑分量表 ' +
+                 q.anx + '/' + q.anxMax + '（' + anxB + '）');
+    }
+
+    /* 安全通道优先于分数通道 */
+    if (q.safeLevel === 'red') return { level:'red', riskType:'高危—自伤风险（安全题命中）', notes };
+    if (depB === '中重度' || anxB === '重度') return { level:'red', riskType:'中重度情绪困扰', notes };
+    if (q.safeLevel === 'yellow') return { level:'yellow', riskType:'情绪低落—需关注', notes };
+    if (depB === '中度' || anxB === '中度') return { level:'yellow', riskType:'一般情绪/学业压力', notes };
+    /* 轻度也归入「需关注」：
+       学校筛查场景下，已经有症状却说「状态良好」会误导班主任。
+       PHQ-9 的 5-9 分本就定义为轻度抑郁，属于值得跟进的范围。 */
+    if (depB === '轻度' || anxB === '轻度') return { level:'yellow', riskType:'轻度情绪困扰—建议关注', notes };
+    return { level:'green', riskType:'状态平稳', notes };
+  }
+
   /* ---------- 轻量判级：只算等级与风险类型，不生成干预方案 ----------
      用途：读取历史数据时用当前规则重算一遍，与入库时存的值比对，
      发现「旧引擎写入、与当前规则不一致」的记录（等级漂移）。
@@ -296,22 +398,17 @@ RB.engine = (function () {
     const text = (input && input.text) || '';
     const answers = (input && input.answers) || {};
     const ruleHits = ruleScan(text);
-    const q = scoreQuestionnaire(answers);
+    const q = scoreQuestionnaire(answers, input && input.qVersion);
+    const cls = classifyQuestionnaire(q);
     const hardRule = ruleHits.find(h => h.hard);
 
-    let level = 'green';
-    if (hardRule || q.hardHit) level = 'red';
-    else if (ruleHits.some(h => h.level === 'yellow') || q.score >= 40) level = 'yellow';
-    else if (q.score >= 25) level = 'yellow';
+    let level = cls.level, riskType = cls.riskType;
+    if (hardRule) { level = 'red'; riskType = hardRule.type; }
+    else if (ruleHits.length && level === 'green') { level = 'yellow'; riskType = ruleHits[0].type; }
 
-    let riskType;
-    if (hardRule) riskType = hardRule.type;
-    else if (q.hardHit) riskType = '高危—自伤意念（问卷命中）';
-    else if (ruleHits.length) riskType = ruleHits[0].type;
-    else if (level === 'yellow') riskType = '一般情绪/学业压力';
-    else riskType = '状态平稳';
-
-    return { level, riskType, score: q.score, hardHit: q.hardHit ? q.hardHit.id : '' };
+    return { level, riskType, score: q.score, version: q.version,
+             hardHit: q.hardHit ? q.hardHit.id : '',
+             safeLevel: q.safeLevel || 'none' };
   }
 
   /* ---------- 对外主入口：评估单个学生（通用） ---------- */
@@ -321,29 +418,31 @@ RB.engine = (function () {
     const answers = input.answers || {};
 
     const ruleHits = ruleScan(text);
-    const q = scoreQuestionnaire(answers);
-
-    let level = 'green';
+    const q = scoreQuestionnaire(answers, input.qVersion);
+    const cls = classifyQuestionnaire(q);
     const hardRule = ruleHits.find(h => h.hard);
-    if (hardRule || q.hardHit) {
-      level = 'red';
-    } else if (ruleHits.some(h => h.level === 'yellow') || q.score >= 40) {
-      level = 'yellow';
-    } else if (q.score >= 25) {
-      level = 'yellow';
-    }
 
-    let riskType;
-    if (hardRule) riskType = hardRule.type;
-    else if (q.hardHit) riskType = '高危—自伤意念（问卷命中）';
-    else if (ruleHits.length) riskType = ruleHits[0].type;
-    else if (level === 'yellow') riskType = '一般情绪/学业压力';
-    else riskType = '状态平稳';
+    /* 问卷先给基线，日常记录的硬规则可以往上抬，但不往下压 */
+    let level = cls.level, riskType = cls.riskType;
+    if (hardRule) { level = 'red'; riskType = hardRule.type; }
+    else if (ruleHits.length && level === 'green') { level = 'yellow'; riskType = ruleHits[0].type; }
 
     const evidence = [];
-    if (q.hardHit) evidence.push('问卷第 ' + q.hardHit.id.slice(1) + ' 题（"' + q.hardHit.text + '"）命中高危项');
+    if (q.version === 'v2') {
+      if (q.safeLevel === 'red') {
+        const which = q.safeHit === 's2' ? '「想过具体要怎么伤害自己」'
+                    : q.safeHit === 's3' ? '「过去一年真的做过伤害自己的事」'
+                    : '「觉得活着没什么意思」频繁出现';
+        evidence.push('安全筛查命中 ' + which + '，需当日人工跟进');
+      } else if (q.safeLevel === 'yellow') {
+        evidence.push('安全筛查：偶尔出现「觉得活着没什么意思」，需 48 小时内跟进');
+      }
+      (cls.notes || []).forEach(n => evidence.push(n));
+    } else {
+      if (q.hardHit) evidence.push('问卷第 ' + q.hardHit.id.slice(1) + ' 题（"' + q.hardHit.text + '"）命中高危项');
+      if (q.score >= 25) evidence.push('问卷综合风险分 ' + q.score + '/100（' + q.raw + '/' + q.max + '），超过关注阈值');
+    }
     ruleHits.forEach(h => evidence.push('日常记录命中规则 ' + h.ruleId + '：' + h.type + '（关键词：' + h.matched.join('、') + '）'));
-    if (q.score >= 25) evidence.push('问卷综合风险分 ' + q.score + '/100（' + q.raw + '/' + q.max + '），超过关注阈值');
     if (!evidence.length) evidence.push('问卷与日常记录均未见明显风险信号');
 
     const theories = ragRetrieve(riskType, evidence.join(' ') + ' ' + text, 3);
@@ -453,7 +552,7 @@ RB.engine = (function () {
       clearTimeout(timer);
       const data = await res.json();
       if (!data || data.ok !== true) throw new Error((data && data.error) || ('HTTP ' + res.status));
-      const q = scoreQuestionnaire(input.answers || {});
+      const q = scoreQuestionnaire(input.answers || {}, input.qVersion);
       const ids = data.theoryIds || [];
       return {
         level: data.level,
@@ -551,7 +650,7 @@ RB.engine = (function () {
   }
 
   return { assess, assessAsync, assessRole, classAnalyze, ruleScan, ragRetrieve, scoreQuestionnaire,
-           gradeLevel,
+           gradeLevel, classifyQuestionnaire, detectVersion,
            studentBlock, teacherBlock, counselingBlock,
            gradeAction, balancePriorities, PRIORITY_META };
 })();

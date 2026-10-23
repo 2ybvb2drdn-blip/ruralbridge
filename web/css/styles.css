@@ -166,6 +166,10 @@ ul.ev { margin:6px 0 0; padding-left:18px; font-size:13.5px; color:#41505f; }
 ul.ev li { margin:4px 0; }
 
 /* 问卷 */
+.q-group { margin:20px 0 4px; padding-top:4px; }
+.q-group:first-child { margin-top:6px; }
+.q-group-t { font-size:14px; font-weight:700; color:var(--brand); }
+.q-group-n { font-size:12px; color:var(--muted); margin-top:3px; line-height:1.6; }
 .q-item { padding:13px 0; border-bottom:1px solid var(--line); }
 .q-item .qt { font-weight:600; margin-bottom:9px; font-size:14.5px; }
 .q-item .qt .dim { font-weight:400; color:var(--muted); font-size:12px; margin-left:8px; }
@@ -174,8 +178,9 @@ ul.ev li { margin:4px 0; }
   text-align:center; font-size:13px; cursor:pointer; background:#fbfcfe; transition:.12s; }
 .q-opts input { display:none; }
 .q-opts label:has(input:checked) { border-color:var(--brand-2); background:#eaf4fc; color:var(--brand); font-weight:600; }
-.q-item.hard { background:#fffafa; }
-.q-item.hard .qt:after { content:"高危项"; margin-left:8px; font-size:11px; color:var(--red);
+.q-item.hard { background:#fffafa; padding-left:10px; padding-right:10px;
+  border-left:3px solid #f0c9c9; border-radius:8px; margin-top:8px; }
+.q-item.hard .qt:after { content:"安全筛查"; margin-left:8px; font-size:11px; color:var(--red);
   background:var(--red-bg); padding:1px 7px; border-radius:999px; font-weight:600; }
 
 textarea.rec { min-height:88px; resize:vertical; }

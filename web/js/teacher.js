@@ -416,7 +416,8 @@
       q.push({ n, t, d, sev: sev || 'info' });
     };
     const eng = RB.engine || {};
-    const scoreOf = ans => (eng.scoreQuestionnaire ? eng.scoreQuestionnaire(ans).score : 0);
+    /* 按作答时的版本计分：旧作答套新题表会全部取不到值 */
+    const scoreOf = (ans, ver) => (eng.scoreQuestionnaire ? eng.scoreQuestionnaire(ans, ver).score : 0);
     const optLabel = v => {
       const o = (RB.QUESTIONNAIRE.options || []).find(x => x.v === v);
       return o ? o.label : String(v);
@@ -482,12 +483,13 @@
         (eng.ruleScan && eng.ruleScan(x.text || '').length > 0)
       ));
       if (qs.length && riskyRec.length) {
-        const lowQ = qs.filter(x => scoreOf(x.answers) <= 10);
+        /* 只比较同一版本内的分数：v1 满分与 v2 满分不同，跨版本比分无意义 */
+        const lowQ = qs.filter(x => scoreOf(x.answers, x.qVersion) <= 10);
         if (lowQ.length) {
           const r0 = riskyRec[0];
           const detail = String(r0.text || '').trim().slice(0, 30) || r0.riskType || '风险信号';
           pushQ(name, '问卷与日常记录不一致',
-            '问卷综合分仅 ' + scoreOf(lowQ[0].answers) + '/100，但日常记录出现「' + detail +
+            '问卷综合分仅 ' + scoreOf(lowQ[0].answers, lowQ[0].qVersion) + '/100，但日常记录出现「' + detail +
             '」。建议当面确认哪一方更接近真实状态。', 'warn');
         }
       }

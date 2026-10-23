@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS submissions (
   rule_hits   TEXT,                 -- JSON 数组
   score       INTEGER DEFAULT 0,
   engine      TEXT,
+  q_version   TEXT DEFAULT 'v1',      -- 问卷版本：v1=10 题旧版 / v2=12 题新版
   created_at  INTEGER NOT NULL
 );
 

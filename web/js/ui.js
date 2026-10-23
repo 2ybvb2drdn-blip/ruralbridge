@@ -125,9 +125,17 @@
 
     let n = 0;
     data.submissions.forEach(s => {
-      const g = eng.gradeLevel({ text: s.text || '', answers: s.answers || {} });
+      /* 必须把作答时的问卷版本传进去：
+         若用 v2 题表去算 v1 作答，所有题都取不到值，
+         分数会变 0，真实高危记录会被抹平成绿色。 */
+      const g = eng.gradeLevel({
+        text: s.text || '',
+        answers: s.answers || {},
+        qVersion: s.qVersion || ''
+      });
       s.levelNow = g.level;
       s.scoreNow = g.score;
+      s.qVersionNow = g.version || s.qVersion || '';
       /* 仅当重算结果比入库更严重时才算漂移 */
       s.levelDrift = (LV_RANK[g.level] || 0) > (LV_RANK[s.level] || 0);
       if (s.levelDrift) n++;

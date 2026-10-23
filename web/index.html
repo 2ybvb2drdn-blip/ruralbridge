@@ -279,7 +279,7 @@
 
     <!-- ============ 学生：心理问卷 ============ -->
     <section class="view" id="view-questionnaire">
-      <div class="section-title">轻量化心理问卷（约 3 分钟）</div>
+      <div class="section-title">心理健康筛查（约 4 分钟 · 12 题）</div>
       <div class="card">
         <h3 id="qTitle"></h3>
         <div class="sub" id="qNote"></div>
@@ -287,12 +287,12 @@
         <div style="display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap">
           <button class="btn" id="btnSubmitQ">提交并生成评估</button>
           <button class="btn ghost" id="btnResetQ">重填</button>
-          <span class="sub" style="margin:0">已作答 <b id="qProg">0 / 10</b></span>
+          <span class="sub" style="margin:0">已作答 <b id="qProg">0 / 0</b></span>
         </div>
       </div>
       <div id="qResult"></div>
       <div class="notice info" style="margin-top:14px">
-        <div>问卷第 9 题为高危筛查项，一旦命中将由<b>规则引擎硬触发</b>直接升级为红色等级，不依赖大模型判断，避免漏报。提交后数据将实时同步至班主任与心理教师后台。</div>
+        <div>问卷依据 PHQ-9（抑郁）与 GAD-7（焦虑）两个国际通用量表改编。最后 3 题是<b>安全筛查</b>，单独判定、不并入总分：偶发的消极念头与「有具体计划」会区别对待，不会一题定生死。作答会实时同步给班主任与心理教师，以便及时提供帮助。</div>
       </div>
     </section>
 

@@ -65,6 +65,7 @@ export async function onRequestGet({ env }) {
     ruleHits: parseArr(r.rule_hits),
     score: r.score || 0,
     engine: r.engine || 'local',
+    qVersion: r.q_version || '',
     createdAt: r.created_at
   }));
 

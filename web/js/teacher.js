@@ -939,7 +939,7 @@
         </div>
         <div class="sub" style="margin:10px 0 0">
           Word / Excel 文件可直接用 Microsoft Office / WPS 打开并继续编辑；
-          PDF 会打开系统打印窗口，在目标处选「存为 PDF」即可；
+          PDF 点击后直接下载文件（无需再走打印窗口），版式固定，适合发给家长或存档。
           导出的内容与当前所选周期（${esc(p.label)}）一致。
         </div>
       </div>
@@ -957,8 +957,29 @@
     $$('#classReport [data-rep-stu]').forEach(b => b.onclick = () => openStudentReport(b.dataset.repStu));
     $('#expDoc').onclick = () => RB.report.exportClassDoc(repPeriod);
     $('#expXlsx').onclick = () => RB.report.exportStudentsXLSX(repPeriod);
-    $('#expPdf').onclick = () => window.print();
+    $('#expPdf').onclick = () => exportReportPDF();
     $('#btnReset').onclick = doReset;
+  }
+
+  /* 班级报告 PDF：直接生成文件下载，不走打印窗口 */
+  async function exportReportPDF() {
+    const btn = $('#expPdf');
+    const old = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '正在生成…'; }
+    try {
+      const r = await RB.pdfReport.exportClassPDF(repPeriod);
+      RB.pdfReport.downloadPDF(r);
+      if (r.missing && r.missing.length) {
+        const list = r.missing.slice(0, 8).join(' ');
+        alert('PDF 已导出，但有 ' + r.missing.length + ' 个字符不在内置字体中，' +
+          '已用「?」代替：' + list + (r.missing.length > 8 ? ' …' : '') +
+          '\n\n如需完整显示，请把该学生姓名中的生僻字改用常用字，或改用 Word 导出。');
+      }
+    } catch (e) {
+      alert('PDF 导出失败：' + (e && e.message ? e.message : e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = old; }
+    }
   }
 
   /* ---------------- 学生个体报告（独立入口） ---------------- */

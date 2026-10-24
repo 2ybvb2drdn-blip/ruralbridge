@@ -230,6 +230,12 @@ footer.site .disc { max-width:760px; margin:0 auto; padding:10px 14px; backgroun
 /* 三栏固定高度，任务多时栏内滚动，避免把下方执行率统计挤到屏外 */
 .act-col { display:flex; flex-direction:column; }
 .act-col .sub { margin-bottom:8px; }
+/* 已完成栏的「清空 / 恢复」：贴在标题右侧，不占内容区高度 */
+.act-col h3 { display:flex; align-items:center; gap:6px; }
+.act-clear { margin-left:auto; font-weight:500; padding:3px 9px; font-size:12px;
+  border-radius:7px; flex:none; }
+.act-clear:hover { border-color:#d64545; color:#d64545; background:#fff6f6; }
+#btnRestoreDone:hover { border-color:var(--brand); color:var(--brand); background:#f2f7fc; }
 .act-scroll { flex:1 1 auto; min-height:0; max-height:360px; overflow-y:auto;
   overscroll-behavior:contain; padding-right:4px; }
 .act-scroll::-webkit-scrollbar { width:6px; }

@@ -118,8 +118,39 @@
     if (!t) return false;
     t.done = !t.done;
     t.doneAt = t.done ? Date.now() : 0;
+    if (!t.done) { delete t.cleared; delete t.clearedAt; }
     saveActs(list);
     return true;
+  }
+
+  /* 清空已完成栏：只打归档标记，不删数据。
+     原因：下方「优先级分布」和「来源执行率」的分母/分子都来自已完成条目，
+     真删会让执行率统计一起归零，等于把「动作真的被执行了」的证据抹掉。
+     归档后列表隐藏，统计照常计入，且可一键恢复。 */
+  function clearDone() {
+    const list = acts();
+    const targets = list.filter(x => x.done && !x.cleared);
+    if (!targets.length) return 0;
+    const ok = window.confirm(
+      '确定清空已完成栏的 ' + targets.length + ' 条任务吗？\n\n' +
+      '这些任务会从列表隐藏，但仍计入下方的优先级分布与来源执行率统计。\n' +
+      '清空后可以点「恢复」找回。');
+    if (!ok) return 0;
+    const now = Date.now();
+    targets.forEach(x => { x.cleared = true; x.clearedAt = now; });
+    saveActs(list);
+    return targets.length;
+  }
+
+  /* 恢复被归档的已完成任务 */
+  function restoreDone() {
+    const list = acts();
+    let n = 0;
+    list.forEach(x => {
+      if (x.cleared) { delete x.cleared; delete x.clearedAt; n++; }
+    });
+    if (n) saveActs(list);
+    return n;
   }
 
   function actItem(a, opts) {
@@ -531,7 +562,10 @@
 
     const todo = sortActs(a.filter(x => !x.done && (!x.due || new Date(x.due) >= today)));
     const overdue = sortActs(a.filter(x => !x.done && x.due && new Date(x.due) < today));
-    const done = sortActs(a.filter(x => x.done));
+    /* 已完成栏只显示未归档的；归档条目仍参与下方执行率统计 */
+    const doneAll = a.filter(x => x.done);
+    const done = sortActs(doneAll.filter(x => !x.cleared));
+    const clearedN = doneAll.length - done.length;
 
     const cntP = { P1:0, P2:0, P3:0 };
     a.filter(x => !x.done).forEach(x => { const k = x.priority || 'P2'; if (cntP[k] != null) cntP[k]++; });
@@ -539,7 +573,14 @@
     $('#actTodoCnt').textContent = todo.length + ' 条待执行' +
       (cntP.P1 ? ` · ${cntP.P1} 条紧急` : '');
     $('#actOverCnt').textContent = overdue.length + ' 条已逾期';
-    $('#actDoneCnt').textContent = done.length + ' 条已完成';
+    $('#actDoneCnt').textContent = done.length + ' 条已完成' +
+      (clearedN ? ` · ${clearedN} 条已归档` : '');
+
+    /* 清空/恢复按钮：没有可清空的就不显示清空，没有归档的就不显示恢复 */
+    const clrBtn = $('#btnClearDone');
+    if (clrBtn) clrBtn.style.display = done.length ? '' : 'none';
+    const resBtn = $('#btnRestoreDone');
+    if (resBtn) resBtn.style.display = clearedN ? '' : 'none';
 
     /* 筛选栏：三个优先级可切换，空 = 全部 */
     const chips = [
@@ -588,6 +629,10 @@
         toggleAct(b.dataset.actDone);
         renderActions();
       });
+      const clr = $('#btnClearDone');
+      if (clr) clr.onclick = () => { clearDone(); renderActions(); };
+      const res = $('#btnRestoreDone');
+      if (res) res.onclick = () => { restoreDone(); renderActions(); };
       $$('#view-actions [data-pri-filter]').forEach(b => b.onclick = () => {
         priFilter = b.dataset.priFilter;
         renderActions();
@@ -609,7 +654,9 @@
     /* 三栏均固定高度可滚动，已完成不再截断为 10 条 */
     $('#actDone').innerHTML = applyFilter(done).length
       ? applyFilter(done).map(x => actItem(x, { checkable:true })).join('')
-      : empty(priFilter ? '该优先级下暂无已完成' : '暂无已完成');
+      : empty(priFilter
+          ? '该优先级下暂无已完成'
+          : (clearedN ? `暂无已完成 · ${clearedN} 条已归档，可点「恢复」找回` : '暂无已完成'));
     bind();
 
     /* 按优先级统计：看「重要的事有没有被拖下去」 */

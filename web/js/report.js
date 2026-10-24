@@ -4,7 +4,7 @@
  *   1) 时间段切片（本周 / 本月 / 全部）
  *   2) 学生个体周报 / 月报计算（基于真实提交，无数据就如实说明）
  *   3) 变化追踪（对比同一学生多次提交的等级与分数）
- *   4) 导出：Word（.doc，Word 兼容 HTML）/ CSV
+ *   4) 导出：Word（.doc，Word 兼容 HTML）/ Excel（.xlsx，自建生成器）
  *
  * 设计原则：
  *   - 只用 RB.state.data.submissions 里的真实记录，绝不编造趋势
@@ -148,6 +148,19 @@
   /** 下载任意文本内容 */
   function download(filename, content, mime) {
     const blob = new Blob(['\ufeff' + content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  /** 下载二进制内容（Excel 用，不能加 BOM，否则文件头被污染） */
+  function downloadBinary(filename, bytes, mime) {
+    const blob = new Blob([bytes], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -367,30 +380,39 @@
     return true;
   }
 
-  /* ---- 学生明细 CSV ---- */
-  function exportStudentsCSV(periodKey) {
+  /* ---- 学生明细 Excel（.xlsx，真表格而非改后缀的 CSV） ---- */
+  function exportStudentsXLSX(periodKey) {
     const p = periodOf(periodKey);
     const S = (RB.state.data && RB.state.data.students) || [];
-    const rows = [['账号', '姓名', '当前等级', '风险分', '主要信号', '周期内提交数', '变化', '最近更新']];
+    const head = ['账号', '姓名', '当前等级', '风险分', '主要信号', '周期内提交数', '变化', '最近更新'];
+    const rows = [head];
     S.forEach(s => {
       const list = subsOf(s.user, p.days);
       const tr = trendOf(list);
       rows.push([
-        s.user, s.name, LV[s.level].txt, s.score,
+        s.user, s.name, LV[s.level].txt,
+        Number(s.score) || 0,
         (s.tags || []).join(' / '),
         list.length,
         tr ? tr.txt : '样本不足',
         s.last
       ]);
     });
-    const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
-    download('乡育心桥_班级统计_' + p.label + '_' + today() + '.csv', csv, 'text/csv;charset=utf-8');
+
+    const bytes = RB.xlsx.build([{
+      name: '学生明细',
+      rows: rows,
+      widths: [14, 12, 10, 8, 30, 14, 14, 14]
+    }]);
+
+    downloadBinary('乡育心桥_班级统计_' + p.label + '_' + today() + '.xlsx',
+      bytes, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   }
 
   /* ---------------- 导出到全局 ---------------- */
   RB.report = {
     PERIODS, periodOf, inPeriod, subsOf, trendOf, summarize, classSummary, klassName,
-    exportClassDoc, exportStudentDoc, exportStudentsCSV,
+    exportClassDoc, exportStudentDoc, exportStudentsXLSX,
     fmtDate, fmtTime, today, RANK
   };
 })();

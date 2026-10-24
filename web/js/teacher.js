@@ -934,11 +934,12 @@
       <div class="card rep-export">
         <div class="rep-exp-row">
           <button class="btn" id="expDoc">导出班级报告（Word）</button>
-          <button class="btn ghost" id="expCsv">导出学生明细（Excel/CSV）</button>
-          <button class="btn ghost" id="expPdf">打印 / 存为 PDF</button>
+          <button class="btn ghost" id="expXlsx">导出学生明细（Excel）</button>
+          <button class="btn ghost" id="expPdf">导出 PDF</button>
         </div>
         <div class="sub" style="margin:10px 0 0">
-          Word 文件可直接用 Microsoft Word / WPS 打开并继续编辑；
+          Word / Excel 文件可直接用 Microsoft Office / WPS 打开并继续编辑；
+          PDF 会打开系统打印窗口，在目标处选「存为 PDF」即可；
           导出的内容与当前所选周期（${esc(p.label)}）一致。
         </div>
       </div>
@@ -955,7 +956,7 @@
     });
     $$('#classReport [data-rep-stu]').forEach(b => b.onclick = () => openStudentReport(b.dataset.repStu));
     $('#expDoc').onclick = () => RB.report.exportClassDoc(repPeriod);
-    $('#expCsv').onclick = () => RB.report.exportStudentsCSV(repPeriod);
+    $('#expXlsx').onclick = () => RB.report.exportStudentsXLSX(repPeriod);
     $('#expPdf').onclick = () => window.print();
     $('#btnReset').onclick = doReset;
   }

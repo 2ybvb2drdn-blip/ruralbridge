@@ -50,7 +50,12 @@
     if (dirty) saveActs(list);
     return list;
   }
-  function saveActs(a) { U.lsSet(TODO_KEY, a); }
+  /* 台账任何写入都走这里，角标在每次变动后自动刷新，
+     不依赖“刚好进过某个页面”。 */
+  function saveActs(a) {
+    U.lsSet(TODO_KEY, a);
+    if (U.renderNavBadge) U.renderNavBadge();
+  }
 
   /* 优先级：P1 紧急 / P2 重要 / P3 常规 */
   const PRI = {
@@ -191,23 +196,9 @@
         <div>${esc(s.riskType || '—')} · ${ts(s.createdAt)}</div>
       </div></div>`).join('') : empty('暂无提交记录');
 
-    /* 待办已整体迁入行动台账，概览不再重复渲染列表。
-       但完全不提会让首页出现信息盲区（有逾期也看不出来），
-       所以在入口按钮上带计数：只报数字，不复述内容。 */
-    const goA = $('#gotoActions');
-    if (goA) {
-      const all = acts();
-      const td0 = new Date(new Date().toDateString());
-      const openN = all.filter(x => !x.done).length;
-      const overN = all.filter(x => !x.done && x.due && new Date(x.due) < td0).length;
-      goA.textContent = openN
-        ? `查看今日待办与行动台账（${openN} 条待办${overN ? ` · ${overN} 条逾期` : ''}）→`
-        : '查看今日待办与行动台账 →';
-      goA.classList.toggle('has-overdue', overN > 0);
-      goA.onclick = () => RB.route('actions');
-    }
-    const go = $('#gotoClassAI');
-    if (go) go.onclick = () => RB.route('classai');
+    /* 底部两个跳转按钮已删除（与标签栏重复）。
+       待办计数改到标签栏「行动台账」角标上，刷新一次保证进页面时就是最新。 */
+    if (U.renderNavBadge) U.renderNavBadge();
   }
 
   /* ---------------- AI 班级研判 ---------------- */

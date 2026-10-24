@@ -289,8 +289,13 @@ footer.site .disc { max-width:760px; margin:0 auto; padding:10px 14px; backgroun
   background:#eef3fb; padding:2px 8px; border-radius:6px; }
 .sug-item { border-left:2px solid #dbe4ef; background:#fbfcfe; }
 
-/* 概览页入口按钮：有逾期时变红，避免首页看不出有紧急事项 */
-#gotoActions.has-overdue { background:var(--red); border-color:var(--red); color:#fff; }
+/* 导航角标：台账待办计数（原概览页底部按钮已删，计数移到这里） */
+.nav-badge { display:inline-block; min-width:17px; padding:0 5px; margin-left:6px;
+  font-size:11px; font-weight:700; line-height:17px; text-align:center;
+  border-radius:9px; background:#e6ebf2; color:#5a6672; vertical-align:1px; }
+.nav-badge.over { background:var(--red); color:#fff; }
+.tabs button.has-overdue { color:var(--red); }
+.tabs button.has-overdue.active { border-bottom-color:var(--red); }
 .pri-chip.on b { opacity:.9; }
 .pri-chip.p1.on { background:#c62828; border-color:#c62828; }
 .pri-chip.p2.on { background:#b8760a; border-color:#b8760a; }

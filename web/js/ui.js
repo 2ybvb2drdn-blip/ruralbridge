@@ -73,6 +73,38 @@
     $('#tabs').innerHTML = nav.map((n, i) =>
       `<button data-tab="${n.tab}"${i === 0 ? ' class="active"' : ''}>${esc(n.label)}</button>`).join('');
     $$('#tabs button').forEach(b => b.onclick = () => RB.route(b.dataset.tab));
+    renderNavBadge();
+  }
+
+  /* ---------------- 导航角标：台账待办 / 逾期计数 ----------------
+     班级概览底部原来的两个跳转按钮已删除（与标签栏重复），
+     但按钮上的待办计数是页面上唯一的任务信号，不能一起丢。
+     改为在标签栏「行动台账」上挂角标：有逾期时变红。 */
+  function navCounts() {
+    if (!RB.actions || typeof RB.actions.all !== 'function') return null;
+    let list;
+    try { list = RB.actions.all() || []; } catch (e) { return null; }
+    const t0 = new Date(new Date().toDateString());
+    const open = list.filter(x => !x.done);
+    const over = open.filter(x => x.due && new Date(x.due) < t0);
+    return { open: open.length, over: over.length };
+  }
+
+  function renderNavBadge() {
+    const btn = $$('#tabs button').filter(b => b.dataset.tab === 'actions')[0];
+    if (!btn) return;
+    const old = btn.querySelector('.nav-badge');
+    if (old) old.remove();
+    btn.classList.remove('has-overdue');
+
+    const c = navCounts();
+    if (!c || !c.open) return;
+    const el = document.createElement('span');
+    el.className = 'nav-badge' + (c.over ? ' over' : '');
+    el.textContent = String(c.open);
+    el.title = c.open + ' 条待办' + (c.over ? '，其中 ' + c.over + ' 条已逾期' : '');
+    btn.appendChild(el);
+    if (c.over) btn.classList.add('has-overdue');
   }
 
   function renderBanner(el, role) {
@@ -101,6 +133,8 @@
         console.error('[view:' + tab + ']', e);
       }
     }
+    /* 路由后刷新角标：否则从其他路径进台账时角标可能过期 */
+    renderNavBadge();
   };
 
   /* ---------------- 等级复核：用当前规则重算入库等级 ----------------
@@ -194,6 +228,6 @@
 
   RB.ui = {
     $, $$, esc, LV, metric, kv, notice, empty, steps, bulletList, pill, aiBlock, loading, ts,
-    lsGet, lsSet, renderChrome, renderBanner
+    lsGet, lsSet, renderChrome, renderBanner, renderNavBadge
   };
 })();

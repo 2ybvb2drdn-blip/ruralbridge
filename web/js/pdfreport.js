@@ -330,6 +330,153 @@
     return { bytes: bytes, filename: name, missing: missing };
   }
 
+  /* ============================================================
+   * 转介单 PDF
+   * 与班级报告不同：这是一份对外文件（交给县级机构），
+   * 版式要像正式表单——标题居中、字段四列表格、留签字栏。
+   * ============================================================ */
+  function renderReferral(doc, m) {
+    doc.newPage();          /* 必须先开一页，否则产出 0 页的非法 PDF */
+    const top = M + 6;
+
+    /* 标题 */
+    const title = '学生心理转介单';
+    const tw = doc.measure(title, 20);
+    doc.text(title, (PAGE_W - tw) / 2, top + 14, { size: 20, color: C.text });
+    const subT = '乡育心桥 · RuralBridge 生成 · ' + m.date;
+    const sw = doc.measure(subT, 8.5);
+    doc.text(subT, (PAGE_W - sw) / 2, top + 34, { size: 8.5, color: C.muted });
+
+    let y = top + 50;
+    doc.line(M, y, PAGE_W - M, y, { width: 0.8, color: C.line });
+    y += 14;
+
+    /* 字段表：四列，值跨列时整行铺满 */
+    const cols = [76, 172, 76, 175.28];
+    const rowH = 24;
+
+    m.rows.forEach(function (r, i) {
+      const span = r[2] === null;
+      doc.rect(M, y, CW, rowH, { fill: i % 2 === 0 ? C.headBg : null, stroke: C.line, width: 0.5 });
+
+      let x = M;
+      const labelW = cols[0];
+      doc.text(r[0], x + 8, y + 16, { size: 9, color: C.muted, maxWidth: labelW - 12 });
+      x += labelW;
+      doc.line(x, y, x, y + rowH, { width: 0.5, color: C.line });
+
+      const valW = span ? (CW - labelW) : cols[1];
+      doc.text(String(r[1] == null ? '' : r[1]), x + 8, y + 16,
+        { size: 9.5, color: C.text, maxWidth: valW - 14 });
+      x += valW;
+
+      if (!span) {
+        doc.line(x, y, x, y + rowH, { width: 0.5, color: C.line });
+        doc.text(r[2], x + 8, y + 16, { size: 9, color: C.muted, maxWidth: cols[2] - 12 });
+        x += cols[2];
+        doc.line(x, y, x, y + rowH, { width: 0.5, color: C.line });
+        doc.text(String(r[3] == null ? '' : r[3]), x + 8, y + 16,
+          { size: 9.5, color: C.text, maxWidth: cols[3] - 14 });
+      }
+      y += rowH;
+    });
+
+    y += 20;
+
+    /* 一、转介依据 */
+    y = refSection(doc, '一、转介依据', y);
+    y = bulletList(doc, m.evidence, y);
+    y += 14;
+
+    /* 二、已采取的校内措施 */
+    y = refSection(doc, '二、已采取的校内措施', y);
+    y = bulletList(doc, m.measures, y);
+    y += 14;
+
+    /* 三、转介建议 */
+    y = refSection(doc, '三、转介建议', y);
+    y += doc.paragraph(m.suggestion, M, y, CW, { size: 9.5, color: C.text, lineHeight: 16 });
+    y += 26;
+
+    /* 签字栏 */
+    if (y > PAGE_H - M - 90) { doc.newPage(); y = M + 20; }
+    doc.line(M, y, PAGE_W - M, y, { width: 0.5, color: C.line });
+    y += 18;
+    doc.text('学校心理教师签字：________________', M, y, { size: 9, color: C.text });
+    doc.text('监护人签字：________________', M + 260, y, { size: 9, color: C.text });
+    y += 22;
+    doc.text('日期：' + m.date, M, y, { size: 9, color: C.text });
+
+    /* 页脚提示 */
+    const fy = PAGE_H - M - 8;
+    doc.line(M, fy - 22, PAGE_W - M, fy - 22, { width: 0.5, color: C.line });
+    doc.paragraph('本转介单含学生敏感信息，仅限校内与转介机构使用，不得随意传播。' +
+      '转介单不构成医学诊断，最终评估结论以专业机构意见为准。',
+      M, fy - 12, CW, { size: 7.5, color: C.faint, lineHeight: 11 });
+  }
+
+  function refSection(doc, txt, y) {
+    doc.text(txt, M, y, { size: 10.5, color: C.text });
+    return y + 14;
+  }
+
+  /* 项目符号列表：悬挂缩进，长条目自动换行对齐 */
+  function bulletList(doc, items, y) {
+    const indent = 12;
+    const lh = 15;
+    items.forEach(function (it) {
+      doc.text('·', M + 2, y, { size: 9.5, color: C.muted });
+      const h = doc.paragraph(it, M + indent, y, CW - indent,
+        { size: 9.5, color: C.text, lineHeight: lh });
+      y += Math.max(lh, h);
+    });
+    return y;
+  }
+
+  /* 试渲染转介单以收集字符 */
+  function collectReferralText(m) {
+    const got = [];
+    const fake = {
+      pageW: PAGE_W, pageH: PAGE_H,
+      newPage: function () {},
+      text: function (s) { got.push(String(s)); return 0; },
+      paragraph: function (s) { got.push(String(s)); return 0; },
+      measure: function () { return 0; },
+      wrap: function (s) { return [String(s)]; },
+      line: function () {}, rect: function () {},
+      build: function () { return Promise.resolve(new Uint8Array(0)); }
+    };
+    renderReferral(fake, m);
+    return got.join('');
+  }
+
+  async function exportReferralPDF(m) {
+    const font = await loadFont();
+
+    const allText = collectReferralText(m) +
+      SAFETY +
+      '学生心理转介单乡育心桥生成年月日一二三转介依据已采取的校内措施建议' +
+      '学校心理教师监护人签字日期本单含敏感信息仅限与机构使用不得随意传播' +
+      '不构成医学诊断最终评估结论以专业意见为准';
+
+    const missing = [];
+    Array.from(new Set(Array.from(allText))).forEach(function (ch) {
+      if (font.cmap[ch.codePointAt(0)] == null) missing.push(ch);
+    });
+
+    const sub = RB.pdfFont.subset(font, allText);
+    const doc = RB.pdfDoc.create({ font: sub, pageW: PAGE_W, pageH: PAGE_H });
+    renderReferral(doc, m);
+    const bytes = await doc.build();
+
+    const safeName = String(m.stu.name || m.stu.uid).replace(/[\\/:*?"<>|]/g, '_');
+    return {
+      bytes: bytes,
+      filename: '乡育心桥_转介单_' + safeName + '_' + m.date + '.pdf',
+      missing: missing
+    };
+  }
+
   function downloadPDF(result) {
     const blob = new Blob([result.bytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
@@ -344,6 +491,7 @@
 
   RB.pdfReport = {
     exportClassPDF: exportClassPDF,
+    exportReferralPDF: exportReferralPDF,
     downloadPDF: downloadPDF,
     setFontBytes: setFontBytes,
     _collect: collect,

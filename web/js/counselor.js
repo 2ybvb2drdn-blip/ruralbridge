@@ -284,49 +284,103 @@
     if (!$('#refDate').value) $('#refDate').value = new Date().toISOString().slice(0, 10);
 
     $('#btnRefGen').onclick = genReferral;
-    $('#btnRefPrint').onclick = () => window.print();
+    $('#btnRefPrint').onclick = exportReferralPDF;
   }
 
-  function genReferral() {
+  /* 转介单数据模型：网页版与 PDF 版共用，避免两处字段写岔 */
+  function refModel() {
     const d = RB.state.data || {};
     const user = $('#refStu').value;
     const stu = (d.students || []).find(x => x.user === user);
-    if (!stu) { alert('请先选择学生'); return; }
+    if (!stu) return null;
+
     const sub = (d.submissions || []).find(x => x.user === user) || {};
-    const org = $('#refOrg').value.trim() || '县级未成年人心理健康辅导中心';
+    const org = ($('#refOrg').value || '').trim() || '县级未成年人心理健康辅导中心';
     const date = $('#refDate').value || new Date().toISOString().slice(0, 10);
+    const lvTxt = (LV[stu.level] || { txt: '—' }).txt;
+    const riskType = stu.riskType || sub.riskType || '—';
+
+    const evidence = (sub.evidence || []).slice();
+    if (!evidence.length) evidence.push('依据学生问卷与日常记录聚合结果。');
+    (sub.ruleHits || []).filter(h => h.hard).forEach(h => {
+      evidence.push('规则引擎硬命中高危规则：' + h.ruleId + ' ' + h.type);
+    });
+
+    return {
+      date: date,
+      org: org,
+      klass: RB.state.user.klass,
+      stu: { name: stu.name, uid: stu.user, levelTxt: lvTxt, riskType: riskType,
+             score: stu.score, last: stu.last || '—' },
+      /* 四列表格：第二对为 null 时表示整行跨列 */
+      rows: [
+        ['学生姓名', stu.name, '账号', stu.user],
+        ['所属班级', RB.state.user.klass, '风险等级', lvTxt],
+        ['风险类型', riskType, null, null],
+        ['风险分', String(stu.score) + ' / 100', '最近提交', stu.last || '—'],
+        ['转介机构', org, null, null]
+      ],
+      evidence: evidence,
+      measures: ['已告知保密例外，学生知情。', '已安排专人陪伴，避免独处。', '已通知监护人并取得配合。'],
+      suggestion: '建议由 ' + org + ' 进行专业心理评估，评估结论请反馈学校心理教师，' +
+        '以便衔接后续在校支持与随访安排。'
+    };
+  }
+
+  function genReferral() {
+    const m = refModel();
+    if (!m) { alert('请先选择学生'); return; }
+    const stu = m.stu;
 
     $('#refBody').innerHTML = `
       <div class="ref-sheet">
         <h2>学生心理转介单</h2>
-        <div class="ref-sub">乡育心桥 · RuralBridge 生成 · ${esc(date)}</div>
+        <div class="ref-sub">乡育心桥 · RuralBridge 生成 · ${esc(m.date)}</div>
         <table>
-          <tr><th>学生姓名</th><td>${esc(stu.name)}</td><th>账号</th><td>${esc(stu.user)}</td></tr>
-          <tr><th>所属班级</th><td>${esc(RB.state.user.klass)}</td><th>风险等级</th><td>${LV[stu.level].txt}</td></tr>
-          <tr><th>风险类型</th><td colspan="3">${esc(stu.riskType || sub.riskType || '—')}</td></tr>
-          <tr><th>风险分</th><td>${stu.score} / 100</td><th>最近提交</th><td>${esc(stu.last)}</td></tr>
-          <tr><th>转介机构</th><td colspan="3">${esc(org)}</td></tr>
+          <tr><th>学生姓名</th><td>${esc(stu.name)}</td><th>账号</th><td>${esc(stu.uid)}</td></tr>
+          <tr><th>所属班级</th><td>${esc(m.klass)}</td><th>风险等级</th><td>${esc(stu.levelTxt)}</td></tr>
+          <tr><th>风险类型</th><td colspan="3">${esc(stu.riskType)}</td></tr>
+          <tr><th>风险分</th><td>${esc(stu.score)} / 100</td><th>最近提交</th><td>${esc(stu.last)}</td></tr>
+          <tr><th>转介机构</th><td colspan="3">${esc(m.org)}</td></tr>
         </table>
         <div style="font-weight:700;margin-top:16px">一、转介依据</div>
         <ul class="mini-list">
-          ${(sub.evidence || []).map(e => '<li>' + esc(e) + '</li>').join('') || '<li>依据学生问卷与日常记录聚合结果。</li>'}
-          ${(sub.ruleHits || []).filter(h => h.hard).map(h => '<li>规则引擎硬命中高危规则：' + esc(h.ruleId) + ' ' + esc(h.type) + '</li>').join('')}
+          ${m.evidence.map(e => '<li>' + esc(e) + '</li>').join('')}
         </ul>
         <div style="font-weight:700;margin-top:14px">二、已采取的校内措施</div>
         <ul class="mini-list">
-          <li>已告知保密例外，学生知情。</li>
-          <li>已安排专人陪伴，避免独处。</li>
-          <li>已通知监护人并取得配合。</li>
+          ${m.measures.map(e => '<li>' + esc(e) + '</li>').join('')}
         </ul>
         <div style="font-weight:700;margin-top:14px">三、转介建议</div>
-        <div>建议由 ${esc(org)} 进行专业心理评估，评估结论请反馈学校心理教师，以便衔接后续在校支持与随访安排。</div>
+        <div>${esc(m.suggestion)}</div>
         <div class="sign">
           <span>学校心理教师签字：____________</span>
           <span>监护人签字：____________</span>
-          <span>日期：${esc(date)}</span>
+          <span>日期：${esc(m.date)}</span>
         </div>
       </div>
-      <div class="notice info no-print" style="margin-top:14px"><div>点击上方「打印」可输出为 PDF 或纸质件。转介单含学生敏感信息，仅限校内与转介机构使用。</div></div>`;
+      <div class="notice info no-print" style="margin-top:14px"><div>点击上方「下载 PDF」可直接保存文件，也可用系统打印输出纸质件。转介单含学生敏感信息，仅限校内与转介机构使用。</div></div>`;
+  }
+
+  /* 转介单 PDF：直接下载，不走打印窗口 */
+  async function exportReferralPDF() {
+    const m = refModel();
+    if (!m) { alert('请先选择学生'); return; }
+    const btn = $('#btnRefPrint');
+    const old = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '正在生成…'; }
+    try {
+      const r = await RB.pdfReport.exportReferralPDF(m);
+      RB.pdfReport.downloadPDF(r);
+      if (r.missing && r.missing.length) {
+        alert('PDF 已导出，但有 ' + r.missing.length + ' 个字符不在内置字体中，已用「?」代替：' +
+          r.missing.slice(0, 8).join(' ') + (r.missing.length > 8 ? ' …' : ''));
+      }
+    } catch (e) {
+      alert('PDF 导出失败：' + (e && e.message ? e.message : e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = old; }
+    }
   }
 
   /* ---------------- 专业工具箱 ---------------- */

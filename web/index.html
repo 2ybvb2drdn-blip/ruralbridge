@@ -261,11 +261,26 @@
 
     <!-- ============ 心理教师：专业工具箱 ============ -->
     <section class="view" id="view-toolbox">
-      <div class="section-title">RAG 理论库检索</div>
+      <div class="section-title">心理学知识库检索
+        <span class="kb-count" id="kbCount"></span>
+      </div>
       <div class="card">
-        <div class="sub">输入风险类型或关键词（如「留守儿童」「社交退缩」「易激惹」），召回匹配的心理学理论条目</div>
-        <input type="text" id="ragQ" placeholder="输入关键词，回车检索">
-        <div id="ragOut" class="scroll-box" style="margin-top:14px"></div>
+        <div class="sub">本地收录疗法、发展、情绪、心理效应、常见议题、危机处置等条目。
+          搜不到时可让 AI 补充（AI 结果未经审核，仅供参考）</div>
+        <div class="kb-search-row">
+          <input type="text" id="ragQ" placeholder="输入关键词，如「考试焦虑」「破窗效应」「自伤」「留守儿童」">
+          <button class="btn ghost sm" id="kbAiBtn" title="本地库未命中时，让 AI 补充解释">AI 补充</button>
+        </div>
+        <div class="kb-cats" id="kbCats"></div>
+        <div class="kb-sug" id="kbSug"></div>
+        <div id="ragOut" class="scroll-box kb-out"></div>
+      </div>
+
+      <div class="section-title">常用量表速查
+        <span class="sub" style="margin:0 0 0 6px;font-weight:400">评分口径与施测注意，点击展开</span>
+      </div>
+      <div class="card">
+        <div id="scaleList" class="scale-list"></div>
       </div>
 
       <div class="section-title">常用技术卡</div>
@@ -375,6 +390,13 @@
 </div>
 
 <script src="js/data.js"></script>
+<script src="js/theories-a.js"></script>
+<script src="js/theories-b.js"></script>
+<script src="js/theories-c.js"></script>
+<script src="js/theories-d.js"></script>
+<script src="js/theories-e.js"></script>
+<script src="js/kbsearch.js"></script>
+<script src="js/scales.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/xlsx.js"></script>

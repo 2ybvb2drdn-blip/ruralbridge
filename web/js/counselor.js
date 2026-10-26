@@ -393,27 +393,199 @@
     { t:'焦点解决短期治疗（SFBT）', d:'用「奇迹提问」「例外提问」寻找已有资源与成功经验，聚焦小步改变，适合动机不足或时间有限的个案。' }
   ];
 
+  /* ---------------- 知识库：分类筛选状态 ---------------- */
+  let kbCat = '';
+  let kbAiResult = null;     // AI 兜底结果，仅在本地未命中时展示
+
+  function theoryCard(t) {
+    const cat = t.cat || '未分类';
+    return `<div class="theory">
+      <div class="th-head">
+        <span class="tn">${esc(t.name)}</span>
+        <span class="kb-cat-tag">${esc(cat)}</span>
+        ${t.author ? `<span class="ta">${esc(t.author)}</span>` : ''}
+      </div>
+      <div class="ts">${esc(t.summary)}</div>
+      <div class="tap">应用：${esc(t.apply)}</div>
+    </div>`;
+  }
+
+  /* AI 补充卡片：必须显眼标注未经审核 */
+  function aiCard(r) {
+    if (!r) return '';
+    if (r.found === false) {
+      return `<div class="kb-ai-card kb-ai-no">
+        <div class="kb-ai-tag">AI 判断 · 非公认概念</div>
+        <div class="kb-ai-name">${esc(r.name || r.query || '')}</div>
+        <div class="kb-ai-sum">${esc(r.summary || '')}</div>
+        ${(r.cautions || []).length ? `<div class="kb-ai-cau">注意：${esc(r.cautions.join('；'))}</div>` : ''}
+      </div>`;
+    }
+    const conf = r.confidence === 'high' ? '可信度较高' :
+      (r.confidence === 'low' ? '可信度低，请核实' : '可信度中等');
+    return `<div class="kb-ai-card">
+      <div class="kb-ai-tag">AI 补充 · 未经专业审核 · ${esc(conf)}</div>
+      <div class="kb-ai-name">${esc(r.name || '')}
+        ${r.category ? `<span class="kb-cat-tag">${esc(r.category)}</span>` : ''}
+        ${r.author ? `<span class="ta">${esc(r.author)}</span>` : ''}</div>
+      <div class="kb-ai-sum">${esc(r.summary || '')}</div>
+      ${r.apply ? `<div class="kb-ai-app">应用：${esc(r.apply)}</div>` : ''}
+      ${(r.cautions || []).length ? `<div class="kb-ai-cau">注意：${esc(r.cautions.join('；'))}</div>` : ''}
+      <div class="kb-ai-disc">${esc(r.disclaimer || '')}</div>
+    </div>`;
+  }
+
   function renderToolbox() {
     const q = $('#ragQ');
     const out = $('#ragOut');
+    const KB = RB.kb;
 
-    const run = () => {
-      const kw = (q.value || '').trim();
-      if (!kw) { out.innerHTML = empty('请输入关键词'); return; }
-      const hits = RB.THEORIES.filter(t =>
-        t.name.indexOf(kw) !== -1 || (t.keywords || []).some(k => k.indexOf(kw) !== -1) ||
-        t.summary.indexOf(kw) !== -1 || t.apply.indexOf(kw) !== -1);
-      out.innerHTML = hits.length ? hits.map(t => `
-        <div class="theory">
-          <div><span class="tn">${esc(t.name)}</span><span class="ta">${esc(t.author || '')}</span>
-            <span class="rule-tag" style="margin-left:8px">${esc(t.id)}</span></div>
-          <div class="ts">${esc(t.summary)}</div>
-          <div class="tap">应用：${esc(t.apply)}</div>
-        </div>`).join('') : empty('未召回匹配条目，可换用更通用的关键词');
+    /* 条数与分类 */
+    const total = (RB.THEORIES || []).length;
+    if ($('#kbCount')) $('#kbCount').textContent = `收录 ${total} 条`;
+
+    const cats = KB.categories();
+    if ($('#kbCats')) {
+      $('#kbCats').innerHTML =
+        `<button class="kb-chip ${kbCat === '' ? 'on' : ''}" data-kb-cat="">全部 <b>${total}</b></button>` +
+        cats.map(c => `<button class="kb-chip ${kbCat === c.cat ? 'on' : ''}" data-kb-cat="${esc(c.cat)}">${esc(c.cat)} <b>${c.n}</b></button>`).join('');
+    }
+
+    if ($('#kbSug')) {
+      $('#kbSug').innerHTML = '<span class="kb-sug-l">试试：</span>' +
+        KB.SUGGEST.map(s => `<button class="kb-sug-b" data-kb-sug="${esc(s)}">${esc(s)}</button>`).join('');
+    }
+
+    const idle = () => {
+      out.innerHTML = `<div class="kb-idle">
+        <div>输入关键词后自动检索，也可点击上方推荐词。</div>
+        <div class="kb-idle-tip">本地库覆盖疗法、发展规律、情绪机制、心理效应、常见议题、危机处置与特定群体。
+        未收录的概念可点「AI 补充」，AI 结果会明确标注未经审核。</div>
+      </div>`;
     };
+
+    let lastQuery = '';
+
+    const run = (opts) => {
+      const o = opts || {};
+      const kw = (q.value || '').trim();
+      lastQuery = kw;
+      kbAiResult = o.keepAi ? kbAiResult : null;
+
+      if (!kw) { idle(); return; }
+
+      const r = KB.search(kw, { cat: kbCat, limit: 30 });
+      const hits = r.hits;
+
+      if (!hits.length) {
+        out.innerHTML = `<div class="kb-none">
+          <div>本地库未收录「${esc(kw)}」${kbCat ? '（当前分类：' + esc(kbCat) + '）' : ''}。</div>
+          <div class="kb-none-tip">可以换个说法，或点「AI 补充」让大模型解释。</div>
+        </div>` + aiCard(kbAiResult);
+        return;
+      }
+
+      const terms = r.terms.filter(t => t !== kw.toLowerCase()).slice(0, 8);
+      const head = `<div class="kb-hit-bar">命中 <b>${hits.length}</b> 条` +
+        (terms.length ? `<span class="kb-terms">（已扩展同义词：${esc(terms.join('、'))}）</span>` : '') +
+        `</div>`;
+
+      out.innerHTML = head + hits.map(h => theoryCard(h.t)).join('') + aiCard(kbAiResult);
+    };
+
+    /* AI 补充 */
+    const aiBtn = $('#kbAiBtn');
+    const doAi = async () => {
+      const kw = (q.value || '').trim();
+      if (!kw) { alert('请先输入要查询的概念'); return; }
+      const localHits = KB.search(kw, { limit: 1 }).hits;
+      if (localHits.length) {
+        /* 本地已收录就不浪费一次调用 */
+        kbAiResult = null;
+        run();
+        return;
+      }
+      const old = aiBtn ? aiBtn.textContent : '';
+      if (aiBtn) { aiBtn.disabled = true; aiBtn.textContent = '查询中…'; }
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 75000);
+        const res = await fetch('/api/ai/kb', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: ctrl.signal,
+          body: JSON.stringify({ query: kw, localHits: [] })
+        });
+        clearTimeout(timer);
+        const data = await res.json();
+        if (!data || data.ok !== true) throw new Error((data && data.error) || ('HTTP ' + res.status));
+        kbAiResult = data;
+      } catch (e) {
+        kbAiResult = {
+          found: false,
+          name: kw,
+          summary: 'AI 补充失败：' + (e && e.message ? e.message : e) +
+            '。可稍后重试，或换用更通用的关键词在本地库检索。',
+          cautions: []
+        };
+      } finally {
+        if (aiBtn) { aiBtn.disabled = false; aiBtn.textContent = old; }
+      }
+      run({ keepAi: true });
+    };
+
     q.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); run(); } };
-    q.oninput = () => { if ((q.value || '').trim().length >= 2) run(); };
-    out.innerHTML = empty('输入关键词后自动检索（如「留守儿童」「社交退缩」「易激惹」）');
+    q.oninput = () => { if ((q.value || '').trim().length >= 1) run(); };
+    if (aiBtn) aiBtn.onclick = doAi;
+
+    $$('#kbCats [data-kb-cat]').forEach(b => b.onclick = () => {
+      kbCat = b.dataset.kbCat;
+      renderToolbox();
+      if (lastQuery || (q.value || '').trim()) run({ keepAi: true });
+    });
+    $$('#kbSug [data-kb-sug]').forEach(b => b.onclick = () => {
+      q.value = b.dataset.kbSug;
+      kbAiResult = null;
+      run();
+    });
+
+    idle();
+
+    /* 量表速查：折叠卡片，点击展开 */
+    const sl = $('#scaleList');
+    if (sl) {
+      const rules = (RB.SCALE_RULES || []).map(r =>
+        `<li><b>${esc(r.t)}</b>：${esc(r.d)}</li>`).join('');
+      const items = (RB.SCALES || []).map(s => `
+        <div class="scale-item" data-scale="${esc(s.id)}">
+          <div class="scale-head">
+            <span class="scale-name">${esc(s.name)}</span>
+            <span class="scale-full">${esc(s.full)}</span>
+            <span class="scale-meta">${esc(String(s.items))} 题 · ${esc(s.time)}</span>
+            <span class="scale-arrow">▾</span>
+          </div>
+          <div class="scale-body">
+            <div class="scale-row"><b>提出者</b><span>${esc(s.author)}</span></div>
+            <div class="scale-row"><b>适用</b><span>${esc(s.target)}</span></div>
+            <div class="scale-row"><b>计分</b><span>${esc(s.score)}</span></div>
+            <div class="scale-bands">
+              ${(s.bands || []).map(b => `<span class="scale-band ${esc(b.c)}">
+                <b>${esc(b.r)}</b> ${esc(b.t)}</span>`).join('')}
+            </div>
+            <div class="scale-row"><b>要点</b><span>${esc(s.note)}</span></div>
+            ${s.warn ? `<div class="scale-warn">⚠ ${esc(s.warn)}</div>` : ''}
+          </div>
+        </div>`).join('');
+
+      sl.innerHTML = `<div class="scale-rules">
+          <div class="scale-rules-t">施测通用原则（比具体量表更常被违反）</div>
+          <ul class="mini-list">${rules}</ul>
+        </div>` + items;
+
+      $$('#scaleList .scale-head').forEach(h => h.onclick = () => {
+        h.parentNode.classList.toggle('open');
+      });
+    }
 
     $('#techCards').innerHTML = TECH_CARDS.map(c =>
       `<div class="tech-card"><div class="tc-t">${esc(c.t)}</div><div class="tc-d">${esc(c.d)}</div></div>`).join('');

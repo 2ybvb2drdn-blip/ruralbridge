@@ -50,6 +50,10 @@ function ragRetrieve(theories, query, topK) {
   const scored = (theories || []).map(t => {
     let s = 0;
     (t.keywords || []).forEach(k => { if (q.indexOf(k) !== -1) s += 3; });
+    /* 名称与别名也参与召回：原实现只看 keywords，
+       导致「考试焦虑」这类在名称里却不在关键词里的词召不回 */
+    if (t.name && q.indexOf(t.name) !== -1) s += 5;
+    (t.alias || []).forEach(a => { if (a && q.indexOf(a) !== -1) s += 4; });
     const segs = String(t.summary || '').split(/[，。、；]/);
     segs.forEach(seg => {
       if (seg.length >= 2 && q.indexOf(seg.slice(0, 2)) !== -1) s += 1;
@@ -283,7 +287,9 @@ export async function onRequestPost({ request, env }) {
 
   const text = String(body.text || '').slice(0, 2000);
   const answers = body.answers || {};
-  const theories = Array.isArray(body.theories) ? body.theories.slice(0, 20) : [];
+  /* 理论库已扩充到 90+ 条，原先 slice(0,20) 会把新增的效应/议题/危机类整类截掉。
+     改为全量接收但限制上限，检索仍在服务端做（见 ragRetrieve）。 */
+  const theories = Array.isArray(body.theories) ? body.theories.slice(0, 120) : [];
   const studentName = String(body.studentName || '该学生').slice(0, 40);
   const role = ['student', 'teacher', 'counselor'].indexOf(body.role) !== -1 ? body.role : 'teacher';
 
@@ -368,7 +374,9 @@ export async function onRequestPost({ request, env }) {
     riskType: String(parsed.riskType || '一般情绪/学业压力').slice(0, 60),
     evidence: strArr(parsed.evidence, 6, 300),
     steps: actArr(parsed.steps, 6, 40, 400),
-    theoryIds: Array.isArray(parsed.theoryIds) ? parsed.theoryIds.filter(x => /^T\d+$/.test(String(x))).slice(0, 3) : [],
+    /* id 形如 T1 / E1 / I1 / C1 / G1（疗法·效应·议题·危机·群体），
+       原正则 /^T\d+$/ 只认疗法类，新增条目会被静默丢弃 */
+    theoryIds: Array.isArray(parsed.theoryIds) ? parsed.theoryIds.filter(x => /^[TECIG]\d+$/.test(String(x))).slice(0, 3) : [],
     talk: strArr(parsed.talk, 4, 300),
     ruleHits,
     latencyMs: Date.now() - t0,

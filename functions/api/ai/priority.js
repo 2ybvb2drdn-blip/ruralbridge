@@ -70,6 +70,43 @@ function parseLooseJson(text) {
   throw new Error('无法解析为 JSON（首 200 字符：' + s.slice(0, 200) + '）');
 }
 
+/* ---------- 二次修复：把非 JSON 输出现场改写成 JSON ----------
+ * 实测上游 deepseek-v4-flash-0731 会无视 response_format 直接输出 markdown 散文。
+ * 与其赌某个模型遵守协议（本地拿不到 API key，无法枚举验证），
+ * 不如在解析失败时做一次补救：把它自己写的散文回灌，
+ * 明确要求只输出 JSON。模型对自己的内容有完整上下文，改写成功率很高。
+ * 只在失败时多花一次调用，不影响正常路径成本。
+ */
+async function repairJson(base, key, model, sys, prose) {
+  const text = String(prose || '').trim().slice(0, 2000);
+  if (!text) return null;
+  try {
+    const r = await fetch(base + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({
+        model: model,
+        max_tokens: 4096,
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: sys },
+          { role: 'user', content: '下面是一段已经写好的心理研判文字。请把它整理成系统提示要求的 JSON 对象。' },
+          { role: 'assistant', content: text },
+          { role: 'user', content: '现在只输出一个 JSON 对象。不要解释、不要 markdown 代码块、不要任何 JSON 以外的文字。' }
+        ]
+      })
+    });
+    if (!r.ok) return null;
+    const out = await r.json();
+    const ext = extractContent(out);
+    const p = parseLooseJson(ext.text);
+    return p.isJson ? p.data : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 
 function normalizePriority(v) {
   const s = String(v || '').toUpperCase().replace(/[^P123]/g, '');
@@ -177,8 +214,14 @@ export async function onRequestPost({ request, env }) {
   try {
     parsed = parseLooseJson(ext.text);
   } catch (e) {
+    /* 上游无视 response_format 输出散文时，先把它写的内容回灌，
+       让它自己整理成 JSON。这一步比直接失败有用得多，
+       且只在解析失败时发生，不影响正常路径成本。 */
+    parsed = await repairJson(base, key, model, SYSTEM_PROMPT, ext.text);
+  }
+  if (!parsed) {
     return json({ ok: false,
-      error: '大模型输出无法解析为 JSON',
+      error: '大模型输出无法解析为 JSON（二次修复亦未成功）',
       reason: e.message,
       contentFrom: ext.src,
       finish: ext.finish,

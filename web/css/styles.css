@@ -194,10 +194,15 @@ ol.steps li:not(:last-child):after { content:""; position:absolute; left:12.5px;
 .kb-ai-card { margin-top:14px; border:1px solid #e6d9b8; border-left:3px solid #d99427;
   background:#fffdf7; border-radius:10px; padding:12px 14px; }
 .kb-ai-card.kb-ai-no { border-color:#e8cccc; border-left-color:#d64545; background:#fffafa; }
+/* 模型未按结构化字段返回时的样式：边框更淡，提示"内容是散文" */
+.kb-ai-card.kb-ai-soft { border-color:#e3dbc8; border-left-color:#c9a86a; background:#fffdf9; }
+.kb-ai-card.kb-ai-soft .kb-ai-tag { color:#8a6a12; }
 .kb-ai-tag { font-size:11.5px; font-weight:600; color:#8a6a12; margin-bottom:6px; }
 .kb-ai-no .kb-ai-tag { color:#b33; }
 .kb-ai-name { font-weight:600; font-size:14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.kb-ai-sum { font-size:13px; color:#41505f; margin:6px 0; line-height:1.7; }
+.kb-ai-sum { font-size:13px; color:#41505f; margin:6px 0; line-height:1.7;
+  /* 模型降级返回的是多段散文，必须保留换行，否则挤成一坨 */
+  white-space:pre-wrap; word-break:break-word; }
 .kb-ai-app { font-size:13px; color:var(--brand); line-height:1.7; }
 .kb-ai-cau { font-size:12.5px; color:#8a6a12; margin-top:6px; line-height:1.65; }
 .kb-ai-disc { font-size:11.5px; color:#a5aeb8; margin-top:8px; padding-top:6px;

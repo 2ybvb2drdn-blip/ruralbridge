@@ -32,12 +32,87 @@ function json(obj, status) {
   });
 }
 
+/* ---------- 大模型输出提取与解析 ----------
+ * 实测踩过的坑：直接把 out.choices[0].message.content 丢给 JSON.parse，
+ * 一旦模型把正文放在 reasoning_content、或 content 为空、
+ * 或返回 markdown 围栏，就会解析失败。
+ * 而且报错时用 String(out) 只会得到 "[object Object]"，等于没有诊断信息。
+ */
+function extractContent(out) {
+  const ch = out && out.choices && out.choices[0];
+  const msg = ch && ch.message;
+  if (!msg) {
+    return { text: '', src: 'none', finish: ch && ch.finish_reason, usage: out && out.usage };
+  }
+  let c = msg.content;
+  if (Array.isArray(c)) {
+    c = c.map(function (p) { return (p && (p.text || p.content)) || ''; }).join('');
+  } else if (c && typeof c === 'object') {
+    c = c.text || c.content || JSON.stringify(c);
+  }
+  let src = 'content';
+  if (!c || !String(c).trim()) {
+    if (msg.reasoning_content) { c = msg.reasoning_content; src = 'reasoning_content'; }
+    else if (msg.reasoning) { c = msg.reasoning; src = 'reasoning'; }
+    else src = 'empty';
+  }
+  return {
+    text: String(c == null ? '' : c),
+    src: src,
+    finish: ch.finish_reason,
+    usage: out && out.usage
+  };
+}
+
+/* 模型返回散文时做轻度清理：去掉 markdown 装饰与前导大括号，
+   保留正文结构与换行，前端按纯文本展示即可。 */
+function cleanProse(text) {
+  let s = String(text || '').trim();
+  /* 若首字符是被污染的 '{'，去掉 */
+  if (s.charAt(0) === '{' && s.indexOf('}') === -1) s = s.slice(1).trim();
+  s = s
+    .replace(/```[a-zA-Z]*\s*/g, '')      /* 代码围栏 */
+    .replace(/^#{1,6}\s*/gm, '')          /* 标题井号 */
+    .replace(/\*\*([^*]+)\*\*/g, '$1')  /* 粗体 */
+    .replace(/\*([^*]+)\*/g, '$1')        /* 斜体 */
+    .replace(/^\s*[-*+]\s+/gm, '· ')      /* 列表符号统一 */
+    .replace(/\n{3,}/g, '\n\n');         /* 压掉过多空行 */
+  return s.trim();
+}
+
+function parseLooseJson(text) {
+  let s = String(text || '').trim();
+  if (!s) throw new Error('内容为空（可能推理过程耗尽了 max_tokens）');
+
+  /* 去掉 markdown 围栏 */
+  s = s.replace(/^```(?:json|JSON)?\s*/, '').replace(/```\s*$/, '').trim();
+
+  /* 整体就是 JSON */
+  try { return { data: JSON.parse(s), isJson: true }; } catch (e) {}
+
+  /* 前后夹杂说明文字：截取最外层大括号 */
+  const i = s.indexOf('{'), j = s.lastIndexOf('}');
+  if (i !== -1 && j > i) {
+    try { return { data: JSON.parse(s.slice(i, j + 1)), isJson: true }; } catch (e) {}
+  }
+
+  /* 到这里说明模型没按 JSON 返回（实测上游会无视 response_format，
+     直接输出 markdown 文章）。不再抛错，交给调用方决定怎么用。 */
+  return { data: null, isJson: false, prose: s };
+}
+
+
 const SYSTEM_PROMPT = `你是"乡育心桥"的心理学知识助手，服务对象是乡村中小学的心理教师与班主任。
 
 【任务】
 用户查询一个心理学概念，本地知识库没有收录。请给出准确、可用的解释。
 
-【输出格式】严格返回 JSON：
+【输出格式 —— 最重要，违反则本次调用无效】
+只输出一个 JSON 对象。第一个字符必须是 {，最后一个字符必须是 }。
+禁止输出 markdown 代码块（不要用三个反引号包裹）、禁止标题、禁止任何解释性文字。
+不要写"一句话："之类的引导语，所有内容都放进下面字段里。
+
+JSON 字段：
 {
   "found": true 或 false,
   "name": "概念规范名称",
@@ -97,6 +172,7 @@ export async function onRequestPost({ request, env }) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
       body: JSON.stringify({
         model,
+        max_tokens: 4096,
         temperature: 0.2,
         response_format: { type: 'json_object' },
         messages: [
@@ -114,12 +190,46 @@ export async function onRequestPost({ request, env }) {
     return json({ ok: false, error: '大模型调用失败：' + (e && e.message ? e.message : String(e)) }, 502);
   }
 
-  let parsed;
+  const ext = extractContent(out);
+  let parsed = null;
+  let prose = '';
   try {
-    const content = out.choices && out.choices[0] && out.choices[0].message && out.choices[0].message.content;
-    parsed = JSON.parse(content);
+    const r = parseLooseJson(ext.text);
+    if (r.isJson) parsed = r.data;
+    else prose = r.prose;
   } catch (e) {
-    return json({ ok: false, error: '大模型输出无法解析为 JSON', raw: String(out).slice(0, 300) }, 502);
+    return json({ ok: false, error: '大模型返回内容为空', reason: e.message,
+      contentFrom: ext.src, finish: ext.finish }, 502);
+  }
+
+  /* 上游未遵守 response_format，返回了散文。这一条对知识库场景仍可用：
+     内容本身是有价值的解释，只是没按字段组织。
+     打包成单字段结构返回，并标注可信度低 + 未按结构返回，
+     比让按钮直接失效要好得多。 */
+  if (!parsed) {
+    const clean = cleanProse(prose);
+    if (!clean) {
+      return json({ ok: false, error: '大模型没有返回有效内容，请稍后重试', finish: ext.finish }, 502);
+    }
+    return json({
+      ok: true,
+      engine: 'llm',
+      query,
+      found: true,
+      name: query,
+      alias: [],
+      category: '',
+      author: '',
+      summary: clean.slice(0, 2000),
+      apply: '',
+      cautions: ['本条为模型自由作答，未按结构化格式返回，仅供参考，请自行核实。'],
+      confidence: 'low',
+      aiGenerated: true,
+      degraded: true,
+      disclaimer: 'AI 生成，未经专业审核，仅供参考。涉及诊断与处置请咨询专业人员。',
+      latencyMs: Date.now() - t0,
+      model: '大模型 ' + model + '（知识库补充 · 未结构化）'
+    });
   }
 
   const CATS = ['疗法', '发展', '情绪', '效应', '议题', '危机', '群体'];

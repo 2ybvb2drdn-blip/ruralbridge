@@ -27,6 +27,51 @@ function json(obj, status) {
   });
 }
 
+/* ---------- 大模型输出提取与解析 ----------
+ * 实测踩过的坑：直接把 out.choices[0].message.content 丢给 JSON.parse，
+ * 一旦模型把正文放在 reasoning_content、或 content 为空、
+ * 或返回 markdown 围栏，就会解析失败。
+ * 而且报错时用 String(out) 只会得到 "[object Object]"，等于没有诊断信息。
+ */
+function extractContent(out) {
+  const ch = out && out.choices && out.choices[0];
+  const msg = ch && ch.message;
+  if (!msg) {
+    return { text: '', src: 'none', finish: ch && ch.finish_reason, usage: out && out.usage };
+  }
+  let c = msg.content;
+  if (Array.isArray(c)) {
+    c = c.map(function (p) { return (p && (p.text || p.content)) || ''; }).join('');
+  } else if (c && typeof c === 'object') {
+    c = c.text || c.content || JSON.stringify(c);
+  }
+  let src = 'content';
+  if (!c || !String(c).trim()) {
+    if (msg.reasoning_content) { c = msg.reasoning_content; src = 'reasoning_content'; }
+    else if (msg.reasoning) { c = msg.reasoning; src = 'reasoning'; }
+    else src = 'empty';
+  }
+  return {
+    text: String(c == null ? '' : c),
+    src: src,
+    finish: ch.finish_reason,
+    usage: out && out.usage
+  };
+}
+
+function parseLooseJson(text) {
+  let s = String(text || '').trim();
+  if (!s) throw new Error('内容为空（可能推理过程耗尽了 max_tokens）');
+  s = s.replace(/^```(?:json|JSON)?\s*/, '').replace(/```\s*$/, '').trim();
+  try { return JSON.parse(s); } catch (e) {}
+  const i = s.indexOf('{'), j = s.lastIndexOf('}');
+  if (i !== -1 && j > i) {
+    try { return JSON.parse(s.slice(i, j + 1)); } catch (e) {}
+  }
+  throw new Error('无法解析为 JSON（首 200 字符：' + s.slice(0, 200) + '）');
+}
+
+
 function strArr(a, n, len) {
   return Array.isArray(a) ? a.slice(0, n).map(x => String(x).slice(0, len || 200)) : [];
 }
@@ -148,6 +193,7 @@ export async function onRequestPost({ request, env }) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
       body: JSON.stringify({
         model,
+        max_tokens: 4096,
         temperature: 0.3,
         response_format: { type: 'json_object' },
         messages: [
@@ -165,12 +211,21 @@ export async function onRequestPost({ request, env }) {
     return json({ ok:false, error:'大模型调用失败：' + (e && e.message ? e.message : String(e)) }, 502);
   }
 
+  const ext = extractContent(out);
   let parsed;
   try {
-    const content = out.choices && out.choices[0] && out.choices[0].message && out.choices[0].message.content;
-    parsed = JSON.parse(content);
+    parsed = parseLooseJson(ext.text);
   } catch (e) {
-    return json({ ok:false, error:'大模型输出无法解析为 JSON', raw: String(out).slice(0, 300) }, 502);
+    return json({ ok: false,
+      error: '大模型输出无法解析为 JSON',
+      reason: e.message,
+      contentFrom: ext.src,
+      finish: ext.finish,
+      completionTokens: ext.usage && ext.usage.completion_tokens,
+      reasoningTokens: ext.usage && ext.usage.completion_tokens_details && ext.usage.completion_tokens_details.reasoning_tokens,
+      contentHead: ext.text.slice(0, 600),
+      upstreamKeys: out && Object.keys(out),
+      }, 502);
   }
 
   const levels = ['steady', 'watch', 'alert'];

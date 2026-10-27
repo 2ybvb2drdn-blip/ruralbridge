@@ -423,8 +423,13 @@
     }
     const conf = r.confidence === 'high' ? '可信度较高' :
       (r.confidence === 'low' ? '可信度低，请核实' : '可信度中等');
-    return `<div class="kb-ai-card">
-      <div class="kb-ai-tag">AI 补充 · 未经专业审核 · ${esc(conf)}</div>
+    /* 模型没按结构化字段返回时（上游会无视 response_format 输出散文），
+       内容仍可用但要明确告知，避免被当成已审核条目 */
+    const tag = r.degraded
+      ? 'AI 补充 · 自由作答未结构化 · 未经专业审核'
+      : 'AI 补充 · 未经专业审核 · ' + esc(conf);
+    return `<div class="kb-ai-card${r.degraded ? ' kb-ai-soft' : ''}">
+      <div class="kb-ai-tag">${esc(tag)}</div>
       <div class="kb-ai-name">${esc(r.name || '')}
         ${r.category ? `<span class="kb-cat-tag">${esc(r.category)}</span>` : ''}
         ${r.author ? `<span class="ta">${esc(r.author)}</span>` : ''}</div>

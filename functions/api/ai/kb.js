@@ -239,10 +239,13 @@ export async function onRequestPost({ request, env }) {
       contentFrom: ext.src, finish: ext.finish }, 502);
   }
 
-  /* 上游返回散文时，先试着让它自己整理成结构化 JSON */
+  /* 上游返回散文时，先试着让它自己整理成结构化 JSON。
+     只接受「确实带 summary」的结果——repairJson 也可能解析出
+     一个没有实质字段的空对象，那种情况必须继续走散文降级，
+     否则会跳过兜底直接 502（这个回归实际发生过）。 */
   if (!parsed && prose) {
     const fixed = await repairJson(base, key, model, SYSTEM_PROMPT, prose);
-    if (fixed) parsed = fixed;
+    if (fixed && String(fixed.summary || '').trim()) parsed = fixed;
   }
 
   /* 上游未遵守 response_format，返回了散文。这一条对知识库场景仍可用：

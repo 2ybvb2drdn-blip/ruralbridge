@@ -250,18 +250,26 @@ export async function onRequestPost({ request, env }) {
 
   const ext = extractContent(out);
   let parsed;
+  let parseErr = null;
   try {
     parsed = parseLooseJson(ext.text);
   } catch (e) {
+    parseErr = e;
     /* 上游无视 response_format 输出散文时，先把它写的内容回灌，
-       让它自己整理成 JSON。这一步比直接失败有用得多，
-       且只在解析失败时发生，不影响正常路径成本。 */
+       让它自己整理成 JSON。只在失败时触发，不影响正常路径成本。
+       注意：修复结果必须真的带该接口需要的字段，否则视为失败——
+       否则会用一个空对象拼出假结论（假绿/假黄），比报错危险得多。 */
     parsed = await repairJson(base, key, model, SYSTEM_PROMPT, ext.text);
+    if (parsed) {
+      let ok2 = false;
+      if (parsed && (parsed.climate || parsed.narrative || (Array.isArray(parsed.causes) && parsed.causes.length) || (Array.isArray(parsed.workload) && parsed.workload.length))) ok2 = true;
+      if (!ok2) parsed = null;
+    }
   }
   if (!parsed) {
     return json({ ok: false,
       error: '大模型输出无法解析为 JSON（二次修复亦未成功）',
-      reason: e.message,
+      reason: parseErr ? parseErr.message : '修复后仍缺少必要字段',
       contentFrom: ext.src,
       finish: ext.finish,
       completionTokens: ext.usage && ext.usage.completion_tokens,

@@ -554,44 +554,185 @@
 
     idle();
 
-    /* 量表速查：折叠卡片，点击展开 */
-    const sl = $('#scaleList');
-    if (sl) {
-      const rules = (RB.SCALE_RULES || []).map(r =>
-        `<li><b>${esc(r.t)}</b>：${esc(r.d)}</li>`).join('');
-      const items = (RB.SCALES || []).map(s => `
-        <div class="scale-item" data-scale="${esc(s.id)}">
-          <div class="scale-head">
-            <span class="scale-name">${esc(s.name)}</span>
-            <span class="scale-full">${esc(s.full)}</span>
-            <span class="scale-meta">${esc(String(s.items))} 题 · ${esc(s.time)}</span>
-            <span class="scale-arrow">▾</span>
-          </div>
-          <div class="scale-body">
-            <div class="scale-row"><b>提出者</b><span>${esc(s.author)}</span></div>
-            <div class="scale-row"><b>适用</b><span>${esc(s.target)}</span></div>
-            <div class="scale-row"><b>计分</b><span>${esc(s.score)}</span></div>
-            <div class="scale-bands">
-              ${(s.bands || []).map(b => `<span class="scale-band ${esc(b.c)}">
-                <b>${esc(b.r)}</b> ${esc(b.t)}</span>`).join('')}
-            </div>
-            <div class="scale-row"><b>要点</b><span>${esc(s.note)}</span></div>
-            ${s.warn ? `<div class="scale-warn">⚠ ${esc(s.warn)}</div>` : ''}
-          </div>
-        </div>`).join('');
-
-      sl.innerHTML = `<div class="scale-rules">
-          <div class="scale-rules-t">施测通用原则（比具体量表更常被违反）</div>
-          <ul class="mini-list">${rules}</ul>
-        </div>` + items;
-
-      $$('#scaleList .scale-head').forEach(h => h.onclick = () => {
-        h.parentNode.classList.toggle('open');
-      });
-    }
+    /* ---------------- 量表派发（真施测，不是速查） ----------------
+     * 这里原先是「计分口径速查」，只读、不能施测，属于无效功能。
+     * 改为：选学生 → 选量表 → 派发 → 学生填写 → 自动计分 → 结果回填。
+     * 仅收录授权干净且学校真正需要的四个：PHQ-9 / GAD-7 / ISI / C-SSRS。
+     */
+    renderScalePanel();
 
     $('#techCards').innerHTML = TECH_CARDS.map(c =>
       `<div class="tech-card"><div class="tc-t">${esc(c.t)}</div><div class="tc-d">${esc(c.d)}</div></div>`).join('');
+  }
+
+  /* ---------------- 量表派发面板 ---------------- */
+  let scaleTasksCache = [];
+  let scaleTasksLoading = false;
+
+  async function fetchScaleTasks() {
+    if (scaleTasksLoading) return scaleTasksCache;
+    scaleTasksLoading = true;
+    try {
+      const res = await fetch('/api/data/scales', { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      scaleTasksCache = (data && data.ok && data.tasks) ? data.tasks : [];
+    } catch (e) {
+      scaleTasksCache = [];
+    }
+    scaleTasksLoading = false;
+    return scaleTasksCache;
+  }
+
+  function renderScalePanel() {
+    const host = $('#scalePanel');
+    if (!host) return;
+
+    const S = (RB.state.data && RB.state.data.students) || [];
+    const bank = RB.scaleBank ? RB.scaleBank.list() : [];
+
+    host.innerHTML = `
+      <div class="card">
+        <h3>派发量表</h3>
+        <div class="sub">针对单个学生做进一步评估。常用的 12 题问卷是全班普查，
+          这里派发的量表用于对已发现风险的学生做深入确认。</div>
+        <div class="grid g4" style="margin-top:10px">
+          <select id="spStu">
+            ${S.length ? S.map(x => `<option value="${esc(x.user)}">${esc(x.name)} · ${esc((LV[x.level] || {}).short || '')}</option>`).join('')
+                       : '<option value="">暂无学生</option>'}
+          </select>
+          <select id="spScale">
+            ${bank.map(b => `<option value="${esc(b.id)}">${esc(b.name)}（${b.itemCount} 题 · 约 ${b.minutes} 分钟）</option>`).join('')}
+          </select>
+          <input type="date" id="spDue">
+          <button class="btn" id="spAssign">派发</button>
+        </div>
+        <div id="spTip" class="sub" style="margin:8px 0 0"></div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h3>已派发量表<span class="sst-cnt" id="spCnt"></span></h3>
+        <div class="sub">学生提交后自动按该量表口径计分并回填等级</div>
+        <div id="spList" class="sp-list"></div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h3>施测通用原则
+          <span class="sub" style="margin:0 0 0 6px;font-weight:400">比具体量表更常被违反</span>
+        </h3>
+        <ul class="mini-list" style="margin:8px 0 0">
+          ${(RB.SCALE_RULES || []).map(r => `<li><b>${esc(r.t)}</b>：${esc(r.d)}</li>`).join('')}
+        </ul>
+      </div>`;
+
+    const dueEl = $('#spDue');
+    if (dueEl && !dueEl.value) {
+      dueEl.value = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    }
+
+    /* 选中量表若需一对一施测，给出明确提示 */
+    const tip = $('#spTip');
+    const updTip = () => {
+      const id = $('#spScale').value;
+      const b = bank.find(x => x.id === id);
+      if (!tip) return;
+      if (b && b.hasWarn) {
+        tip.innerHTML = `<span style="color:#a63a3a">⚠ ${esc(b.warn)}</span>`;
+      } else {
+        tip.innerHTML = '派发后学生登录即可在「心理问卷」页看到待填量表。';
+      }
+    };
+    const sel = $('#spScale');
+    if (sel) { sel.onchange = updTip; updTip(); }
+
+    $('#spAssign').onclick = async () => {
+      const user = $('#spStu').value;
+      const scaleId = $('#spScale').value;
+      const due = $('#spDue').value;
+      if (!user) { alert('请先选择学生'); return; }
+      if (!scaleId) { alert('请先选择量表'); return; }
+
+      const stu = S.find(x => x.user === user);
+      const btn = $('#spAssign');
+      btn.disabled = true; btn.textContent = '派发中…';
+      try {
+        const res = await fetch('/api/data/scales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'assign', user, name: (stu && stu.name) || user,
+            scaleId, due, assignedBy: RB.state.user.name || ''
+          })
+        });
+        const data = await res.json();
+        if (!data || data.ok !== true) throw new Error((data && data.error) || '派发失败');
+        if (data.existed) alert('该学生已有未完成的同一量表，已跳过重复派发。');
+        await refreshScaleList();
+      } catch (e) {
+        alert('派发失败：' + (e && e.message ? e.message : e));
+      } finally {
+        btn.disabled = false; btn.textContent = '派发';
+      }
+    };
+
+    refreshScaleList();
+  }
+
+  async function refreshScaleList() {
+    const list = $('#spList');
+    if (!list) return;
+    list.innerHTML = '<div class="sub" style="padding:8px 0">读取中…</div>';
+
+    const tasks = await fetchScaleTasks();
+    const cnt = $('#spCnt');
+    if (cnt) {
+      const p = tasks.filter(t => t.status === 'pending').length;
+      cnt.textContent = tasks.length ? `${tasks.length} 份 · ${p} 份待填` : '';
+    }
+
+    if (!tasks.length) {
+      list.innerHTML = '<div class="sp-empty">还没有派发过量表</div>';
+      return;
+    }
+
+    const LVc = { green: 'green', yellow: 'yellow', red: 'red' };
+    list.innerHTML = tasks.map(t => {
+      const S = (RB.scaleBank.all || []).find(x => x.id === t.scaleId);
+      const bankList = RB.scaleBank.list().find(x => x.id === t.scaleId);
+      const nm = S ? S.name : (bankList ? bankList.name : t.scaleId);
+      const done = t.status === 'done';
+      const lvl = done ? (LVc[t.level] || '') : '';
+      return `<div class="sp-row ${done ? 'done' : ''} ${t.level === 'red' ? 'red' : ''}">
+        <div class="sp-main">
+          <div class="sp-t"><b>${esc(t.name)}</b> · ${esc(nm)}
+            ${done && t.level ? `<span class="sp-lv ${lvl}">${esc((LV[t.level] || {}).short || t.level)}</span>` : '<span class="sp-lv pending">待填写</span>'}
+          </div>
+          <div class="sp-m">
+            ${done ? esc(t.detail || '') : (t.due ? '截止 ' + esc(t.due) : '无截止日期')}
+            ${t.oneOnOne ? ' · 需一对一施测' : ''}
+            · 派发于 ${esc(ts(t.assignedAt))}
+          </div>
+        </div>
+        <div class="sp-ops">
+          ${done ? '' : `<button class="btn ghost sm" data-sp-revoke="${esc(t.id)}">撤回</button>`}
+        </div>
+      </div>`;
+    }).join('');
+
+    $$('#spList [data-sp-revoke]').forEach(b => b.onclick = async () => {
+      if (!confirm('撤回这份量表？学生端将不再显示。')) return;
+      try {
+        const res = await fetch('/api/data/scales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'revoke', id: b.dataset.spRevoke })
+        });
+        const data = await res.json();
+        if (!data || data.ok !== true) throw new Error((data && data.error) || '撤回失败');
+        await refreshScaleList();
+      } catch (e) {
+        alert('撤回失败：' + (e && e.message ? e.message : e));
+      }
+    });
   }
 
   /* ---------------- 注册 ---------------- */

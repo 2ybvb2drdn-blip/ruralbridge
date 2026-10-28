@@ -9,8 +9,175 @@
   const U = RB.ui;
   const { $, $$, esc, LV, notice, empty, steps, pill, aiBlock, loading, ts } = U;
 
+  /* ---------------- 教师派发的量表任务 ----------------
+   * 与上面的 12 题普查问卷是两回事：
+   *   12 题问卷 = 全班普查，固定题目
+   *   量表任务 = 教师针对某个学生派发的单量表（PHQ-9 / GAD-7 / ISI / C-SSRS）
+   * 数据存 D1 scale_tasks 表，通过 /api/data/scales 读写。
+   */
+  let scaleTasks = [];
+  let scaleTasksLoaded = false;
+  let openTaskId = '';          /* 当前展开填写的任务 */
+  let taskAnswers = {};         /* { itemId: value } */
+
+  async function loadScaleTasks() {
+    try {
+      const res = await fetch('/api/data/scales?user=' +
+        encodeURIComponent(RB.state.user.user), { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      scaleTasks = (data && data.ok && data.tasks) ? data.tasks : [];
+    } catch (e) {
+      scaleTasks = [];
+    }
+    scaleTasksLoaded = true;
+    return scaleTasks;
+  }
+
+  function pendingTasks() {
+    return scaleTasks.filter(t => t.status === 'pending');
+  }
+
+  function renderScaleTasks() {
+    const host = $('#stuScaleTasks');
+    if (!host) return;
+
+    const pending = pendingTasks();
+    if (!pending.length) { host.innerHTML = ''; return; }
+
+    host.innerHTML = `<div class="card stu-scale-card">
+      <h3>老师希望你填写的量表<span class="sst-cnt">${pending.length} 份待填</span></h3>
+      <div class="sub">这些量表是老师为了更好地了解你的情况而安排的，填完会自动提交给老师。</div>
+      <div id="stuScaleList"></div>
+    </div>`;
+
+    const list = $('#stuScaleList');
+    list.innerHTML = pending.map(t => {
+      const S = (RB.scaleBank.all || []).find(x => x.id === t.scaleId);
+      if (!S) return '';
+      const open = openTaskId === t.id;
+      const answered = S.items.filter(it => taskAnswers[it.id] !== undefined).length;
+
+      const body = open ? `
+        <div class="sst-body">
+          <div class="sst-frame">${esc(S.frame || '')}</div>
+          ${S.warn ? `<div class="sst-warn">⚠ ${esc(S.warn)}</div>` : ''}
+          ${S.items.map((it, idx) => {
+            const opts = it.options || S.options || [];
+            return `<div class="sst-item">
+              <div class="sst-qt">${idx + 1}. ${esc(it.text)}</div>
+              <div class="sst-opts">${opts.map(o => `
+                <label><input type="radio" name="st_${t.id}_${it.id}" value="${o.v}"
+                  ${taskAnswers[it.id] === o.v ? 'checked' : ''}
+                  data-ti="${esc(it.id)}">${esc(o.label)}</label>`).join('')}</div>
+            </div>`;
+          }).join('')}
+          <div class="sst-foot">
+            <button class="btn" data-sst-submit="${esc(t.id)}"
+              ${answered < S.items.length ? 'disabled' : ''}>提交量表</button>
+            <button class="btn ghost" data-sst-cancel="${esc(t.id)}">收起</button>
+            <span class="sub" style="margin:0">已答 <b>${answered} / ${S.items.length}</b></span>
+          </div>
+        </div>` : '';
+
+      return `<div class="sst-row ${open ? 'open' : ''}">
+        <div class="sst-head">
+          <div class="sst-main">
+            <div class="sst-name">${esc(S.name)}</div>
+            <div class="sst-meta">${S.items.length} 题 · 约 ${S.minutes} 分钟${t.due ? ' · 截止 ' + esc(t.due) : ''}</div>
+          </div>
+          ${open ? '' : `<button class="btn ghost sm" data-sst-open="${esc(t.id)}">开始填写</button>`}
+        </div>
+        ${body}
+      </div>`;
+    }).join('');
+
+    /* 绑定 */
+    $$('#stuScaleList [data-sst-open]').forEach(b => b.onclick = () => {
+      openTaskId = b.dataset.sstOpen;
+      taskAnswers = {};
+      renderScaleTasks();
+    });
+    $$('#stuScaleList [data-sst-cancel]').forEach(b => b.onclick = () => {
+      openTaskId = '';
+      taskAnswers = {};
+      renderScaleTasks();
+    });
+    $$('#stuScaleList input[type=radio]').forEach(r => r.onchange = () => {
+      taskAnswers[r.dataset.ti] = +r.value;
+      /* 只更新进度与提交按钮，不整块重渲染——
+         重渲染会丢焦点、跳滚动位置，填到第 7 题时体验很差 */
+      const row = r.closest('.sst-row');
+      if (!row) return;
+      const id = row.querySelector('[data-sst-submit]');
+      const tid = id ? id.dataset.sstSubmit : '';
+      const t = scaleTasks.find(x => x.id === tid);
+      const S = t ? (RB.scaleBank.all || []).find(x => x.id === t.scaleId) : null;
+      if (!S) return;
+      const n = S.items.filter(it => taskAnswers[it.id] !== undefined).length;
+      if (id) id.disabled = n < S.items.length;
+      const prog = row.querySelector('.sst-foot .sub b');
+      if (prog) prog.textContent = n + ' / ' + S.items.length;
+    });
+    $$('#stuScaleList [data-sst-submit]').forEach(b => b.onclick = () => {
+      submitScaleTask(b.dataset.sstSubmit, b);
+    });
+  }
+
+  async function submitScaleTask(taskId, btn) {
+    const t = scaleTasks.find(x => x.id === taskId);
+    if (!t) return;
+    const S = (RB.scaleBank.all || []).find(x => x.id === t.scaleId);
+    if (!S) return;
+
+    const score = RB.scaleBank.score(t.scaleId, taskAnswers);
+    if (score.error) { alert(score.error); return; }
+
+    const old = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '提交中…'; }
+
+    try {
+      const res = await fetch('/api/data/scales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'submit', id: taskId, answers: taskAnswers, result: score })
+      });
+      const data = await res.json();
+      if (!data || data.ok !== true) throw new Error((data && data.error) || '提交失败');
+
+      openTaskId = '';
+      taskAnswers = {};
+      await loadScaleTasks();
+      renderScaleTasks();
+      showScaleResult(S, score);
+    } catch (e) {
+      alert('提交失败：' + (e && e.message ? e.message : e));
+      if (btn) { btn.disabled = false; btn.textContent = old; }
+    }
+  }
+
+  /* 学生端结果反馈：只给可做的事，不出现诊断名词与分级术语 */
+  function showScaleResult(S, r) {
+    const host = $('#stuScaleTasks');
+    if (!host) return;
+    const warm = r.level === 'red'
+      ? '你的回答里有一些需要认真对待的信号。老师会尽快联系你，请先不要一个人待着。'
+      : (r.level === 'yellow'
+        ? '你的回答说明最近有些辛苦。老师会找时间和你聊聊。'
+        : '谢谢你的如实作答。目前没有发现需要特别担心的情况。');
+    const card = document.createElement('div');
+    card.className = 'card stu-scale-done';
+    card.innerHTML = `<h3>已提交：${esc(S.name)}</h3>
+      <div class="sst-thanks">${esc(warm)}</div>
+      <div class="sub">如果现在很难受，可以随时找班主任或心理老师，也可以拨打全国心理援助热线 12356。</div>`;
+    host.insertBefore(card, host.firstChild);
+    setTimeout(() => { if (card.parentNode) card.parentNode.removeChild(card); }, 12000);
+  }
+
   /* ---------------- 问卷 ---------------- */
   function renderQuestionnaire() {
+    /* 先拉取教师派发的量表任务（异步，不阻塞问卷渲染） */
+    loadScaleTasks().then(() => renderScaleTasks());
+
     const Q = RB.QUESTIONNAIRE;
     $('#qTitle').textContent = Q.title;
     $('#qNote').textContent = Q.note;
@@ -193,5 +360,5 @@
   RB.views['student:record'] = renderRecord;
   RB.views['student:mine'] = renderMine;
 
-  RB.student = { submitQuestionnaire, submitRecord };
+  RB.student = { submitQuestionnaire, submitRecord, loadScaleTasks };
 })();

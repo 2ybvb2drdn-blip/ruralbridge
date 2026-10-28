@@ -276,12 +276,10 @@
         <div id="ragOut" class="scroll-box kb-out"></div>
       </div>
 
-      <div class="section-title">常用量表速查
-        <span class="sub" style="margin:0 0 0 6px;font-weight:400">评分口径与施测注意，点击展开</span>
+      <div class="section-title">量表测评
+        <span class="sub" style="margin:0 0 0 6px;font-weight:400">派发给单个学生，提交后自动计分</span>
       </div>
-      <div class="card">
-        <div id="scaleList" class="scale-list"></div>
-      </div>
+      <div id="scalePanel"></div>
 
       <div class="section-title">常用技术卡</div>
       <div class="grid g2 scroll-box" id="techCards"></div>
@@ -289,6 +287,9 @@
 
     <!-- ============ 学生：心理问卷 ============ -->
     <section class="view" id="view-questionnaire">
+      <!-- 教师派发的单量表任务（有才显示） -->
+      <div id="stuScaleTasks"></div>
+
       <div class="section-title">心理健康筛查（约 4 分钟 · 12 题）</div>
       <div class="card">
         <h3 id="qTitle"></h3>
@@ -397,6 +398,7 @@
 <script src="js/theories-e.js"></script>
 <script src="js/kbsearch.js"></script>
 <script src="js/scales.js"></script>
+<script src="js/scalebank.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/xlsx.js"></script>

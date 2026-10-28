@@ -503,13 +503,11 @@
     const doAi = async () => {
       const kw = (q.value || '').trim();
       if (!kw) { alert('请先输入要查询的概念'); return; }
-      const localHits = KB.search(kw, { limit: 1 }).hits;
-      if (localHits.length) {
-        /* 本地已收录就不浪费一次调用 */
-        kbAiResult = null;
-        run();
-        return;
-      }
+
+      /* 注意：这里原先有一段「本地已收录就静默 return」的优化，
+         结果导致点击毫无反应——理论库 91 条 + 同义词扩展后，
+         用户输入几乎总能本地命中，按钮等于永久失效。
+         用户主动点这个按钮就是要 AI 的补充视角，本地有没有都不该拦。 */
       const old = aiBtn ? aiBtn.textContent : '';
       if (aiBtn) { aiBtn.disabled = true; aiBtn.textContent = '查询中…'; }
       try {

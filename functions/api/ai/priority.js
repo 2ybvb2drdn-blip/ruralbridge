@@ -14,8 +14,8 @@
  *      保证录入流程永远不阻塞。
  * ============================================================ */
 
-const DEFAULT_BASE = 'https://api.aibvv.cn/v1';
-const DEFAULT_MODEL = 'deepseek-v4-flash-0731';
+const DEFAULT_BASE = 'https://api.aivbv.cn/v1';
+const DEFAULT_MODEL = 'deepseek-v4.1-flash';
 
 const PRIORITIES = ['P1', 'P2', 'P3'];
 
@@ -71,7 +71,7 @@ function parseLooseJson(text) {
 }
 
 /* ---------- 二次修复：把非 JSON 输出现场改写成 JSON ----------
- * 实测上游 deepseek-v4-flash-0731 会无视 response_format 直接输出 markdown 散文。
+ * 实测上游 deepseek-v4.1-flash 会无视 response_format 直接输出 markdown 散文。
  * 与其赌某个模型遵守协议（本地拿不到 API key，无法枚举验证），
  * 不如在解析失败时做一次补救：把它自己写的散文回灌，
  * 明确要求只输出 JSON。模型对自己的内容有完整上下文，改写成功率很高。
@@ -144,6 +144,14 @@ const SYSTEM_PROMPT = `你是"乡育心桥"的任务优先级判定助手，服�
 }
 i 必须对应输入 actions 数组的下标，items 条数必须与 actions 条数一致。`;
 
+/* 末尾强制指令：上游不执行 response_format，只能靠普通语言把字段写死 */
+const FINAL_ORDER_PRIORITY = '最后一步：把判级结果整理成 JSON。\n' +
+  '必须且只能使用这些顶层字段名：items\n' +
+  'items 是数组，每项必须含 i（对应输入动作的序号，数字）、p（只能是 P1、P2、P3）、why（20 字内理由）。\n' +
+  '每个输入动作都必须有一条结果，i 不得遗漏或重复。\n' +
+  'skeleton：{"items":[{"i":0,"p":"P1","why":"涉及红色学生上报"},{"i":1,"p":"P2","why":"本周班会安排"}]}\n' +
+  '现在只输出这个 JSON 对象，第一个字符是 {，不要任何其他文字。';
+
 export async function onRequestPost({ request, env }) {
   const t0 = Date.now();
   let body;
@@ -196,7 +204,9 @@ export async function onRequestPost({ request, env }) {
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: JSON.stringify(payload) }
+          { role: 'user', content: JSON.stringify(payload) },
+          /* 上游不执行 response_format，必须末尾写死字段名与骨架 */
+          { role: 'user', content: FINAL_ORDER_PRIORITY }
         ]
       })
     });

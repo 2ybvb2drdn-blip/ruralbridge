@@ -17,8 +17,8 @@
  *      保证班级页永不空白。
  * ============================================================ */
 
-const DEFAULT_BASE = 'https://api.aibvv.cn/v1';
-const DEFAULT_MODEL = 'deepseek-v4-flash-0731';
+const DEFAULT_BASE = 'https://api.aivbv.cn/v1';
+const DEFAULT_MODEL = 'deepseek-v4.1-flash';
 
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
@@ -72,7 +72,7 @@ function parseLooseJson(text) {
 }
 
 /* ---------- 二次修复：把非 JSON 输出现场改写成 JSON ----------
- * 实测上游 deepseek-v4-flash-0731 会无视 response_format 直接输出 markdown 散文。
+ * 实测上游 deepseek-v4.1-flash 会无视 response_format 直接输出 markdown 散文。
  * 与其赌某个模型遵守协议（本地拿不到 API key，无法枚举验证），
  * 不如在解析失败时做一次补救：把它自己写的散文回灌，
  * 明确要求只输出 JSON。模型对自己的内容有完整上下文，改写成功率很高。
@@ -178,6 +178,15 @@ causes 2~4 条；四个动作维度各 2~3 条；focusGroups 2~4 条；watchSign
 如果全班没有红色学生、信号集中在个别学生，不要把班级层面动作标成 P1。
 同一批动作里，P1 建议控制在 1~2 条，P3 至少保留 1 条。`;
 
+/* 末尾强制指令：上游不执行 response_format，只能靠普通语言把字段写死 */
+const FINAL_ORDER_CLASS = '最后一步：把上述研判整理成 JSON。\n' +
+  '必须且只能使用这些顶层字段名，不得增删改：\n' +
+  'climate, climateLevel, narrative, causes, workload, activity, classroom, home, focusGroups, watchSignals\n' +
+  'climateLevel 只能是 steady、watch、alert 之一；\n' +
+  'causes 每项含 t、d；四个动作维度（workload/activity/classroom/home）每项含 t、d、p；\n' +
+  'skeleton：{"climate":"...","climateLevel":"watch","narrative":"...","causes":[{"t":"...","d":"..."}],"workload":[{"t":"...","d":"...","p":"P2"}],"activity":[{"t":"...","d":"...","p":"P3"}],"classroom":[{"t":"...","d":"...","p":"P2"}],"home":[{"t":"...","d":"...","p":"P2"}],"focusGroups":["..."],"watchSignals":["..."]}\n' +
+  '现在只输出这个 JSON 对象，第一个字符是 {，不要任何其他文字。';
+
 export async function onRequestPost({ request, env }) {
   const t0 = Date.now();
   let body;
@@ -235,7 +244,9 @@ export async function onRequestPost({ request, env }) {
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: JSON.stringify(payload) }
+          { role: 'user', content: JSON.stringify(payload) },
+          /* 上游不执行 response_format，必须末尾写死字段名与骨架 */
+          { role: 'user', content: FINAL_ORDER_CLASS }
         ]
       })
     });

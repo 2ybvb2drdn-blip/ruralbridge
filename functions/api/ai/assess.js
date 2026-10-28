@@ -20,8 +20,8 @@
  *   ④ 结果回填理论来源，返回前端
  * ============================================================ */
 
-const DEFAULT_BASE = 'https://api.aibvv.cn/v1';
-const DEFAULT_MODEL = 'deepseek-v4-flash-0731';
+const DEFAULT_BASE = 'https://api.aivbv.cn/v1';
+const DEFAULT_MODEL = 'deepseek-v4.1-flash';
 
 /* ---------- 规则引擎（与前端同源，服务端复算） ---------- */
 const RULES = [
@@ -153,12 +153,19 @@ function hardPlan(role) {
 }
 
 /* ---------- 系统提示词：共同红线 ---------- */
-const COMMON = `【共同红线】
+const COMMON = `【输出格式 —— 最高优先级，违反则本次回答作废】
+你是一个 JSON 生成接口，不是聊天助手。
+你的整段回复必须且只能是一个 JSON 对象：
+- 第一个字符必须是 {，最后一个字符必须是 }
+- 禁止输出任何 JSON 以外的文字：不要开场白、不要"根据现有信息…"这类分析、不要小标题、不要 markdown（不要用 # 或 ** 排版）、不要代码块
+- 需要表达的一切内容，全部装进下面定义的字段里
+- 如果觉得信息不足，也必须在 JSON 字段里说明（例如 evidence 写"问卷为空"），不能改写成散文
+
+【共同红线】
 1. 禁止给出任何医学诊断结论（如"抑郁症""焦虑症""双相障碍"等疾病名称），只描述状态与机制。
 2. 不臆造数据，只依据用户提供的记录、问卷作答与候选理论。
 3. 涉及高危信号时，必须提示由专业人员介入。
-4. 面向乡村中小学真实场景，语言具体、可执行，避免空泛口号。
-5. 只输出 JSON，不要任何解释文字或 Markdown 代码块。`;
+4. 面向乡村中小学真实场景，语言具体、可执行，避免空泛口号。`;
 
 const PROMPT_STUDENT = `你是"乡育心桥"的学生陪伴助手，服务对象是乡村中小学学生本人（不是老师）。
 
@@ -183,7 +190,10 @@ const PROMPT_STUDENT = `你是"乡育心桥"的学生陪伴助手，服务对象
   "steps": [{"t":"小标题","d":"具体做法"}],
   "theoryIds": ["T1"],
   "talk": ["对学生说的话"]
-}`;
+}
+
+【再次强调格式】只输出 JSON 对象本身。第一个字符是 {，最后一个是 }。
+不要写"**1. 教师当下可做**"这类 markdown 小标题，不要解释你的思路，不要任何前言后语。`;
 
 const PROMPT_TEACHER = `你是"乡育心桥"的班主任助手。使用者是乡村中小学班主任，不是心理专业人员。
 
@@ -218,7 +228,10 @@ steps 与 teacher.immediate 各 3~4 条；watchFor 3~5 条；talk 2~3 条。
 - P2 重要：本周内应完成。直接改善该生当前状态的调整（作业量、座位、提问方式、家校沟通）。
 - P3 常规：可排期。长期习惯培养、氛围建设、预防性动作。
 同一批动作里 P1 控制在 1~2 条，必须至少保留 1 条 P3。
-如果该生风险等级是 green，全部动作不得标 P1。`;
+如果该生风险等级是 green，全部动作不得标 P1。
+
+【再次强调格式】只输出 JSON 对象本身。第一个字符是 {，最后一个是 }。
+不要写"**1. 教师当下可做**"这类 markdown 小标题，不要解释你的思路，不要任何前言后语。`;
 
 const PROMPT_COUNSELOR = `你是"乡育心桥"的学校心理教师助手。使用者是持证/专职心理教师，具备专业判断力。
 
@@ -245,7 +258,10 @@ ${COMMON}
     "cautions": ["辅导注意事项与伦理提醒"]
   }
 }
-techniques 3~4 条；sessionPlan 3~4 次；cautions 2~4 条。`;
+techniques 3~4 条；sessionPlan 3~4 次；cautions 2~4 条。
+
+【再次强调格式】只输出 JSON 对象本身。第一个字符是 {，最后一个是 }。
+不要写"**1. 教师当下可做**"这类 markdown 小标题，不要解释你的思路，不要任何前言后语。`;
 
 /* ---------- 输出裁剪 ---------- */
 function strArr(a, n, len) {
@@ -325,7 +341,7 @@ function parseLooseJson(text) {
 }
 
 /* ---------- 二次修复：把非 JSON 输出现场改写成 JSON ----------
- * 实测上游 deepseek-v4-flash-0731 会无视 response_format 直接输出 markdown 散文。
+ * 实测上游 deepseek-v4.1-flash 会无视 response_format 直接输出 markdown 散文。
  * 与其赌某个模型遵守协议（本地拿不到 API key，无法枚举验证），
  * 不如在解析失败时做一次补救：把它自己写的散文回灌，
  * 明确要求只输出 JSON。模型对自己的内容有完整上下文，改写成功率很高。
@@ -361,6 +377,16 @@ async function repairJson(base, key, model, sys, prose) {
   }
 }
 
+
+/* 末尾强制指令：上游不执行 response_format，只能靠一轮普通语言把字段写死。
+   实测证明这是唯一有效的手段（json_object / json_schema / prefill 全部失败）。 */
+const FINAL_ORDER_ASSESS = '最后一步：把上述分析整理成 JSON。\n' +
+  '必须且只能使用这些顶层字段名，不得增删改：\n' +
+  'level, riskType, evidence, steps, theoryIds, talk，以及按角色二选一：teacher 或 counseling（学生角色不需要）。\n' +
+  'level 只能是 green、yellow、red 之一；\n' +
+  'steps 与 teacher.immediate、teacher.classroomAdjust 都是数组，每项含 t、d、p；\n' +
+  'skeleton：{"level":"yellow","riskType":"...","evidence":["..."],"steps":[{"t":"...","d":"...","p":"P2"}],"theoryIds":["T1"],"talk":["..."],"teacher":{"studentSummary":"...","immediate":[{"t":"...","d":"...","p":"P1"}],"classroomAdjust":[{"t":"...","d":"...","p":"P2"}],"homeContact":"...","watchFor":["..."],"talk":["..."]}}\n' +
+  '现在只输出这个 JSON 对象，第一个字符是 {，最后一个字符是 }，不要任何其他文字。';
 
 export async function onRequestPost({ request, env }) {
   const t0 = Date.now();
@@ -428,7 +454,11 @@ export async function onRequestPost({ request, env }) {
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: sys },
-          { role: 'user', content: JSON.stringify(userPayload) }
+          { role: 'user', content: JSON.stringify(userPayload) },
+          /* 上游实测完全不执行 response_format（json_object / json_schema / prefill 都试过，
+             仍输出 markdown 散文）。唯一有效的方式：在最后一轮用普通语言
+             把顶层字段名和 JSON 骨架写死。详见 docs/技术文档.md 4.7.1 */
+          { role: 'user', content: FINAL_ORDER_ASSESS }
         ]
       })
     });

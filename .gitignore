@@ -8,3 +8,7 @@ dist/
 
 # Cloudflare wrangler 本地状态
 .wrangler/
+
+# 测试依赖
+tests/node_modules/
+tests/package-lock.json

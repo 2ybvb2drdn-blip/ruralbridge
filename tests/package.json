@@ -1,0 +1,13 @@
+{
+  "name": "ruralbridge-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "乡育心桥 · 前端与引擎回归测试（jsdom，无浏览器依赖）",
+  "scripts": {
+    "test": "node run-all.js",
+    "test:one": "node"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.3"
+  }
+}

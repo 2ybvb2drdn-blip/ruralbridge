@@ -239,7 +239,7 @@
         <div style="margin-left:auto;text-align:right"><div class="kv"><span>引擎：</span><b>${esc(r.model || '—')}</b></div></div>
       </div>
       ${aiBlock('群体心理气候', r.climate, 'counselor')}
-      ${r.narrative ? `<div class="section-title">数据说明了什么</div><div style="font-size:13.5px;line-height:1.75;color:#41505f">${esc(r.narrative)}</div>` : ''}
+      ${r.narrative ? `<div class="section-title">数据说明了什么</div><div style="font-size:13.5px;line-height:1.75;color:var(--muted)">${esc(r.narrative)}</div>` : ''}
       ${r.causes && r.causes.length ? `<div class="section-title">群体共性特征</div>${steps(r.causes)}` : ''}
       ${r.focusGroups && r.focusGroups.length ? `<div class="section-title">需要重点关注的群体</div>${bulletList(r.focusGroups)}` : ''}
       ${r.watchSignals && r.watchSignals.length ? `<div class="section-title">未来一周留意</div>${bulletList(r.watchSignals)}` : ''}
@@ -625,7 +625,7 @@
       const b = bank.find(x => x.id === id);
       if (!tip) return;
       if (b && b.hasWarn) {
-        tip.innerHTML = `<span style="color:#a63a3a">⚠ ${esc(b.warn)}</span>`;
+        tip.innerHTML = `<span style="color:var(--red)">⚠ ${esc(b.warn)}</span>`;
       } else {
         tip.innerHTML = '派发后学生登录即可在「心理问卷」页看到待填量表。';
       }

@@ -36,6 +36,8 @@ const ORDER = [
   'refpdf.js',         // 转介单 PDF
   'rminsights.js',     // 概览页信息密度
   'scrollbox.js',      // 滚动样式
+  'walkthrough.js',    // 全流程走查：三角色逐页 + 关键交互
+  'contrast-check.js', // 深色主题对比度（WCAG 2.1）
 ];
 
 function files() {

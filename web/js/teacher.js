@@ -286,7 +286,7 @@
         </div>
       </div>
       ${aiBlock('班级整体气候', r.climate)}
-      ${r.narrative ? `<div class="section-title">数据说明了什么</div><div style="font-size:13.5px;line-height:1.75;color:#41505f">${esc(r.narrative)}</div>` : ''}
+      ${r.narrative ? `<div class="section-title">数据说明了什么</div><div style="font-size:13.5px;line-height:1.75;color:var(--muted)">${esc(r.narrative)}</div>` : ''}
       ${r.causes && r.causes.length ? `<div class="section-title">共性诱因</div>${steps(r.causes)}` : ''}
       ${r.workload && r.workload.length ? `<div class="section-title">作业量与考试节奏</div>${steps(r.workload)}` : ''}
       ${r.activity && r.activity.length ? `<div class="section-title">课外活动与班级氛围</div>${steps(r.activity)}` : ''}
@@ -944,10 +944,10 @@
         </div>
       </div>
 
-      <div class="section-title" style="color:#c62828">测试工具</div>
-      <div class="card" style="border-color:#f0d0d0">
+      <div class="section-title" style="color:var(--red)">测试工具</div>
+      <div class="card" style="border-color:var(--red-bd)">
         <div class="sub" style="margin-top:0">清空全部学生提交数据（问卷 + 日常记录），用于反复测试。此操作不可恢复。</div>
-        <div style="margin-top:12px"><button class="btn" id="btnReset" style="background:#c62828">重置学生数据</button></div>
+        <div style="margin-top:12px"><button class="btn" id="btnReset" style="background:var(--red);color:#1a0d0d">重置学生数据</button></div>
       </div>`;
 
     $$('#classReport [data-rep-period]').forEach(b => b.onclick = () => {

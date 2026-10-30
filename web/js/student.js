@@ -348,7 +348,7 @@
           </div>
         </div>
         ${s.riskType ? `<div class="kv"><span>风险类型：</span><b>${esc(s.riskType)}</b></div>` : ''}
-        ${s.text ? `<div class="section-title">你写的内容</div><div style="font-size:13.5px;color:#41505f">${esc(s.text)}</div>` : ''}
+        ${s.text ? `<div class="section-title">你写的内容</div><div style="font-size:13.5px;color:var(--muted)">${esc(s.text)}</div>` : ''}
         ${s.steps && s.steps.length ? `<div class="section-title">当时的建议</div>${steps(s.steps.slice(0, 4))}` : ''}
         ${s.talk && s.talk.length ? s.talk.map(t => `<div class="theory"><div class="ts">${esc(t)}</div></div>`).join('') : ''}
       </div>`).join('') + `

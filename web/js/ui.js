@@ -20,7 +20,7 @@
 
   /* ---------------- 通用片段 ---------------- */
   function metric(cls, num, lbl) {
-    return `<div class="card metric ${cls}"><div class="num">${num}</div><div class="lbl">${esc(lbl)}</div></div>`;
+    return `<div class="metric ${cls}"><div class="num">${num}</div><div class="lbl">${esc(lbl)}</div></div>`;
   }
   function kv(k, v) { return `<div class="kv"><span>${esc(k)}：</span><b>${esc(v)}</b></div>`; }
   function notice(level, title, desc) {

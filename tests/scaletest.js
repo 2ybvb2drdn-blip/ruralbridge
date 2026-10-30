@@ -5,7 +5,7 @@ const { JSDOM } = require('jsdom');
 const WEB = path.join(__dirname, '..', 'web');
 const html = fs.readFileSync(path.join(WEB, 'index.html'), 'utf8');
 const files = ['data.js','theories-a.js','theories-b.js','theories-c.js','theories-d.js','theories-e.js',
-  'kbsearch.js','scales.js','scalebank.js','engine.js','ui.js','xlsx.js','pdffont.js','pdfdoc.js',
+  'kbsearch.js','scalebank.js','engine.js','ui.js','xlsx.js','pdffont.js','pdfdoc.js',
   'pdfreport.js','report.js','teacher.js','counselor.js','student.js','app.js'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let pass = 0, fail = 0;
@@ -169,7 +169,9 @@ async function login(w, u, p) {
   ok('下拉列出 4 个量表', scaleOpts.length === 4, scaleOpts.join(','));
   ok('初始提示「还没有派发过」', text(d.getElementById('spList')).indexOf('还没有派发') !== -1,
      text(d.getElementById('spList')));
-  ok('施测通用原则仍在', text(d.getElementById('scalePanel')).indexOf('筛查不等于诊断') !== -1);
+  /* 施测通用原则已迁入技术文档，界面不再展示 */
+  ok('界面不显示施测通用原则',
+     text(d.getElementById('scalePanel')).indexOf('筛查不等于诊断') === -1);
 
   /* 派发 PHQ-9 给学生1 */
   d.getElementById('spStu').value = 'student1';

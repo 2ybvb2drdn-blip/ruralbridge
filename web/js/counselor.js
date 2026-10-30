@@ -190,7 +190,7 @@
     const d = RB.state.data || {};
     const S = d.students || [];
     $('#climateBody').innerHTML = `
-      <div class="sub">基于全校学生聚合数据生成群体心理特征画像与发展性课程建议。此处不输出作业量、课堂模式等班主任职权内的管理动作。</div>
+      <div class="sub">基于全校聚合数据生成群体画像与课程建议</div>
       <div class="grid g3" style="margin-top:14px">
         ${metric('red', d.stats ? d.stats.red : 0, '红色个案')}
         ${metric('yellow', d.stats ? d.stats.yellow : 0, '黄色个案')}
@@ -593,8 +593,6 @@
     host.innerHTML = `
       <div class="card">
         <h3>派发量表</h3>
-        <div class="sub">针对单个学生做进一步评估。常用的 12 题问卷是全班普查，
-          这里派发的量表用于对已发现风险的学生做深入确认。</div>
         <div class="grid g4" style="margin-top:10px">
           <select id="spStu">
             ${S.length ? S.map(x => `<option value="${esc(x.user)}">${esc(x.name)} · ${esc((LV[x.level] || {}).short || '')}</option>`).join('')
@@ -611,18 +609,9 @@
 
       <div class="card" style="margin-top:12px">
         <h3>已派发量表<span class="sst-cnt" id="spCnt"></span></h3>
-        <div class="sub">学生提交后自动按该量表口径计分并回填等级</div>
         <div id="spList" class="sp-list"></div>
       </div>
-
-      <div class="card" style="margin-top:12px">
-        <h3>施测通用原则
-          <span class="sub" style="margin:0 0 0 6px;font-weight:400">比具体量表更常被违反</span>
-        </h3>
-        <ul class="mini-list" style="margin:8px 0 0">
-          ${(RB.SCALE_RULES || []).map(r => `<li><b>${esc(r.t)}</b>：${esc(r.d)}</li>`).join('')}
-        </ul>
-      </div>`;
+`;
 
     const dueEl = $('#spDue');
     if (dueEl && !dueEl.value) {

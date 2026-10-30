@@ -235,7 +235,7 @@
   /* ---------------- AI 班级研判 ---------------- */
   function renderClassAI() {
     const body = $('#classAIBody');
-    body.innerHTML = `<div class="sub">基于全班学生聚合数据（不含姓名，仅送聚合特征）由大模型归纳：班级整体气候、共性诱因，以及作业量 / 课外活动 / 课堂模式 / 家校协同四个维度的可执行动作。</div>
+    body.innerHTML = `<div class="sub">仅使用聚合数据，不含学生姓名</div>
       <div style="margin-top:12px"><button class="btn" id="btnClassAI">生成班级研判</button></div>`;
     $('#btnClassAI').onclick = runClassAI;
   }

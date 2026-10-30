@@ -75,20 +75,17 @@
       <div class="grid g2" style="margin-top:16px">
         <div class="card">
           <h3>风险分布</h3>
-          <div class="sub">按学生最近一次提交的风险等级统计</div>
           <div id="distBar"></div>
           <div class="trend-legend" id="distLegend" style="flex-wrap:wrap;gap:10px"></div>
         </div>
         <div class="card">
           <h3>班级信息</h3>
-          <div class="sub">数据来源：学生问卷 + 日常记录实时聚合</div>
           <div id="classMeta"></div>
         </div>
       </div>
 
       <div class="card" style="margin-top:16px">
         <h3>最近提交</h3>
-        <div class="sub">按提交时间倒序，最新 6 条</div>
         <div id="recent" class="scroll-box"></div>
       </div>
     </section>
@@ -97,7 +94,7 @@
     <section class="view" id="view-classai">
       <div class="section-title">AI 班级整体状态研判</div>
       <div class="card" id="classAIBody">
-        <div class="sub">基于全班学生聚合数据（不含姓名，仅送聚合特征）由大模型归纳。点击下方按钮开始研判。</div>
+        <div class="sub">仅使用聚合数据，不含学生姓名</div>
         <div style="margin-top:12px"><button class="btn" id="btnClassAI">生成班级研判</button></div>
       </div>
     </section>
@@ -110,19 +107,19 @@
       <div class="grid g2" style="margin-top:16px">
         <div class="card">
           <h3>未提交名单</h3>
-          <div class="sub">点击「加入待办」写入行动台账，便于持续跟进</div>
+          
           <div id="collectMissing" class="scroll-box"></div>
         </div>
         <div class="card">
           <h3>数据质量提示</h3>
-          <div class="sub">连续同选项、单次提交等疑似敷衍作答，建议当面确认</div>
+          
           <div id="collectQuality" class="scroll-box"></div>
         </div>
       </div>
 
       <div class="card" style="margin-top:16px">
         <h3>提交明细</h3>
-        <div class="sub">按提交时间倒序，标注类型与风险等级</div>
+        
         <div id="collectDetail" class="tbl-scroll"></div>
       </div>
     </section>
@@ -137,7 +134,7 @@
 
       <div class="card sug-card" style="margin-top:12px">
         <h3>今日建议<span class="sug-cnt" id="actSuggestCnt"></span></h3>
-        <div class="sub">由当前班级数据实时推导。加入台账后即转为下方待执行动作，不重复出现</div>
+        
         <div id="actSuggest" class="scroll-box"></div>
       </div>
 
@@ -150,12 +147,12 @@
       <div class="grid g2" style="margin-top:16px">
         <div class="card">
           <h3>优先级分布</h3>
-          <div class="sub">按紧急程度看执行情况，避免只做容易的、把重要的拖下去</div>
+          
           <div id="actPriStat"></div>
         </div>
         <div class="card">
           <h3>来源执行率</h3>
-          <div class="sub">按动作来源分组，统计 AI 建议实际被执行的比例</div>
+          
           <div id="actSourceStat"></div>
         </div>
       </div>
@@ -220,7 +217,7 @@
     <section class="view" id="view-cases">
       <div class="section-title">辅导档案 · 个案跟踪</div>
       <div class="card">
-        <div class="sub" style="margin-bottom:0">每个已接手的学生一张档案卡，记录状态流转、会谈次数、复评变化与下次随访日期。</div>
+        
       </div>
       <div class="grid g2 scroll-box tall" id="caseGrid" style="margin-top:16px"></div>
     </section>
@@ -229,7 +226,7 @@
     <section class="view" id="view-climate">
       <div class="section-title">全校心理态势（群体画像，非管理动作）</div>
       <div class="card" id="climateBody">
-        <div class="sub">基于各班聚合数据生成群体心理特征画像与发展性课程建议。此处不输出作业量、课堂模式等班主任职权内的管理动作。</div>
+        
         <div style="margin-top:12px"><button class="btn" id="btnClimate">生成心理态势画像</button></div>
       </div>
     </section>
@@ -245,7 +242,7 @@
 
       <div class="card" style="margin-top:16px">
         <h3>转介单生成</h3>
-        <div class="sub">选择学生后可生成转介单，点击「下载 PDF」直接保存文件（含依据、建议机构、监护人告知情况）</div>
+        
         <div class="grid g3" style="margin-top:6px">
           <select id="refStu"></select>
           <input type="text" id="refOrg" placeholder="建议转介机构（默认县级未成年人心理健康辅导中心）">
@@ -265,8 +262,7 @@
         <span class="kb-count" id="kbCount"></span>
       </div>
       <div class="card">
-        <div class="sub">本地收录疗法、发展、情绪、心理效应、常见议题、危机处置等条目。
-          搜不到时可让 AI 补充（AI 结果未经审核，仅供参考）</div>
+        
         <div class="kb-search-row">
           <input type="text" id="ragQ" placeholder="输入关键词，如「考试焦虑」「破窗效应」「自伤」「留守儿童」">
           <button class="btn ghost sm" id="kbAiBtn" title="本地库未命中时，让 AI 补充解释">AI 补充</button>
@@ -397,7 +393,6 @@
 <script src="js/theories-d.js"></script>
 <script src="js/theories-e.js"></script>
 <script src="js/kbsearch.js"></script>
-<script src="js/scales.js"></script>
 <script src="js/scalebank.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/ui.js"></script>

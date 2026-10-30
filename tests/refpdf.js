@@ -13,7 +13,7 @@ const { JSDOM } = require('jsdom');
 const WEB = path.join(__dirname, '..', 'web');
 const html = fs.readFileSync(path.join(WEB, 'index.html'), 'utf8');
 const files = ['data.js','theories-a.js','theories-b.js','theories-c.js','theories-d.js','theories-e.js',
-  'kbsearch.js','scales.js','scalebank.js','engine.js','ui.js','xlsx.js','pdffont.js','pdfdoc.js',
+  'kbsearch.js','scalebank.js','engine.js','ui.js','xlsx.js','pdffont.js','pdfdoc.js',
   'pdfreport.js','report.js','teacher.js','counselor.js','student.js','app.js'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 

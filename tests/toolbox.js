@@ -3,7 +3,7 @@ const fs=require('fs'),path=require('path'),{JSDOM}=require('jsdom');
 const WEB = path.join(__dirname, '..', 'web');
 const html=fs.readFileSync(path.join(WEB,'index.html'),'utf8');
 const files=['data.js','theories-a.js','theories-b.js','theories-c.js','theories-d.js','theories-e.js',
-  'kbsearch.js','scales.js','scalebank.js','engine.js','ui.js','xlsx.js','pdffont.js','pdfdoc.js','pdfreport.js',
+  'kbsearch.js','scalebank.js','engine.js','ui.js','xlsx.js','pdffont.js','pdfdoc.js','pdfreport.js',
   'report.js','teacher.js','counselor.js','student.js','app.js'];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let pass=0, fail=0;
@@ -125,7 +125,9 @@ function boot(aiReply){
   ['PHQ-9','GAD-7','ISI','C-SSRS'].forEach(k=>
     ok('量表可选 '+k, opts.includes(k), opts.join(',')));
   ok('不含需授权的 SDQ', !opts.includes('SDQ'), opts.join(','));
-  ok('有施测通用原则', st.includes('筛查不等于诊断'), st.slice(0,120));
+  /* 施测通用原则已从界面移除，迁入 docs/技术文档.md 5.3.1，
+     界面只保留可操作的派发功能（用户反馈说教式说明影响观感） */
+  ok('界面不再显示施测通用原则', !st.includes('筛查不等于诊断'), st.slice(0,120));
   ok('有已派发区', st.includes('已派发量表'), st.slice(0,160));
 
   /* 11. AI 兜底：本地未命中时 */

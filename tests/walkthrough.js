@@ -104,11 +104,14 @@ const ROLE_LOGIN = { teacher:['banzhuren123','王老师'], counselor:['xinli123'
   /* ---------- 0. 深色主题确实生效 ---------- */
   {
     const { w } = boot();
-    ok('CSS 定义 --bg 深色', /--bg:\s*#0d131b/i.test(CSS), '');
-    ok('CSS 定义 --ink 浅色', /--ink:\s*#dde5ee/i.test(CSS), '');
-    ok('CSS 定义 --card 深色', /--card:\s*#151f2b/i.test(CSS), '');
-    ok('有 theme-color 深色声明', /name="theme-color"\s+content="#0d131b"/i.test(html));
-    ok('声明 color-scheme: dark', /name="color-scheme"\s+content="dark"/i.test(html));
+    /* 主题已从深色改为暖米白（调研 Headspace / Calm / 简单心理 后重构），
+       断言随之改为校验浅色暖调的三个关键变量。 */
+    ok('CSS 定义 --bg 暖米白', /--bg:\s*#FBF7F2/i.test(CSS), '');
+    ok('CSS 定义 --ink 暖深棕', /--ink:\s*#2C2622/i.test(CSS), '');
+    ok('CSS 定义 --card 纯白', /--card:\s*#FFFFFF/i.test(CSS), '');
+    ok('有 theme-color 暖色声明', /name="theme-color"\s+content="#FBF7F2"/i.test(html),
+       (html.match(/theme-color"\s+content="([^"]+)"/) || [])[1]);
+    ok('声明 color-scheme: light', /name="color-scheme"\s+content="light"/i.test(html));
     /* body 背景不再引用浅色。
        注意：CSS 里有两条 body 规则（一条只管 margin/padding），
        必须遍历全部取含 background 的那条，不能只匹配第一条。 */
@@ -118,9 +121,9 @@ const ROLE_LOGIN = { teacher:['banzhuren123','王老师'], counselor:['xinli123'
        bodyMain.slice(0, 90));
     ok('body 文字用 var(--ink)', /color:\s*var\(--ink\)/.test(bodyMain),
        bodyMain.slice(0, 90));
-    /* 登录页背景是深色渐变 */
+    /* 登录页背景应为暖色渐变（不再是纯色深底） */
     const loginRule = CSS.match(/\.login-wrap\s*\{[^}]*\}/);
-    ok('登录页背景非浅色', loginRule && !/#f[0-9a-f]{5}/i.test(loginRule[0]),
+    ok('登录页使用暖色渐变', loginRule && /linear-gradient/.test(loginRule[0]),
        loginRule && loginRule[0].slice(0, 120));
   }
 

@@ -149,12 +149,14 @@ console.log('-'.repeat(72));
   console.log(`  ${ok ? 'OK ' : 'FAIL'} ${label.padEnd(30)} ${r.toFixed(2)}:1  (需 4.5)`);
 });
 
-/* ---------- 按钮：深色文字压在品牌色上 ---------- */
-console.log('\n主按钮（文字 #08131a 压品牌色，需 >= 4.5）');
+/* ---------- 按钮：白色文字压在品牌色上 ----------
+   主题从深色改为浅色暖调后，按钮文字由深色 #08131a 改为白色 #fff，
+   这里必须跟着改，否则测的是已经不存在的配色。 */
+console.log('\n主按钮（白字压品牌底，需 >= 4.5）');
 console.log('-'.repeat(72));
 [['brand','主按钮'],['brand-2','主按钮 hover']].forEach(([n,label]) => {
   const bg = G(n);
-  const fg = parse('#08131a');
+  const fg = parse('#ffffff');
   const r = ratio(fg, bg);
   const ok = r >= 4.5;
   if (ok) cnt.pass++; else cnt.fail++;

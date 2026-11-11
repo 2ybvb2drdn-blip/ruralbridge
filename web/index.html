@@ -14,14 +14,14 @@
 <!-- ================= 登录页 ================= -->
 <div class="login-wrap" id="login">
   <form class="login-card" id="loginForm" autocomplete="off">
+    <img class="login-art" src="img/seedling.png" alt="">
     <div class="brand-row">
-      <div class="brand-mark">桥</div>
       <div>
         <div class="brand-name">乡育心桥</div>
-        <div style="font-size:12px;color:var(--muted)">RuralBridge · 教师辅助 Agent</div>
+        <div class="brand-sub-inline">RuralBridge · 乡村学生心理支持</div>
       </div>
     </div>
-    <div class="brand-sub">乡村学生心理成长与教师辅助系统</div>
+    <div class="brand-sub">一座桥，连着孩子的心里话和愿意听的大人</div>
 
     <label class="field" for="u">账号</label>
     <input type="text" id="u" placeholder="请输入账号" autocomplete="username">
@@ -43,12 +43,12 @@
         <button type="button" class="btn ghost sm" data-fill="student4">学生4</button>
         <button type="button" class="btn ghost sm" data-fill="student5">学生5</button>
       </div>
-      <div style="margin-top:10px;font-size:12px;color:var(--muted)">
-        密码统一为 <b>12345678</b>。班主任 / 心理教师进入管理后台（<b>两套差异化工作流</b>），学生进入问卷与记录页。
+      <div class="hint-note">
+        密码统一为 <b>12345678</b>。班主任与心理老师进入工作台，学生进入问卷与记录页。
       </div>
     </div>
-    <div class="hint" style="background:rgba(224,168,60,.08);border-color:var(--yellow-bd)">
-      测试环境：本系统所有数据均由测试学生账号真实填写产生，教师后台实时读取。
+    <div class="warm-note">
+      <b>测试环境</b>：下面的数据都由测试学生账号真实填写产生，老师端会实时读到。
     </div>
   </form>
 </div>
@@ -71,10 +71,16 @@
 
     <!-- ============ 班主任：班级概览 ============ -->
     <section class="view" id="view-dash">
-      <div class="section-title">班级心理晴雨表（来自学生真实提交）</div>
+      <div class="page-head">
+        <img class="ph-icon" src="img/sun.png" alt="">
+        <div class="ph-text">
+          <h2>班级心理晴雨表</h2>
+          <p>数据来自学生真实提交，每次提交后这里会自动更新</p>
+        </div>
+      </div>
       <div id="metrics"></div>
 
-      <div class="grid g2" style="margin-top:16px">
+      <div class="grid g2 mt">
         <div class="card">
           <h3>风险分布</h3>
           <div id="distBar"></div>
@@ -86,7 +92,7 @@
         </div>
       </div>
 
-      <div class="card" style="margin-top:16px">
+      <div class="card mt">
         <h3>最近提交</h3>
         <div id="recent" class="scroll-box"></div>
       </div>
@@ -94,19 +100,30 @@
 
     <!-- ============ 班主任：AI 班级研判（宏观） ============ -->
     <section class="view" id="view-classai">
-      <div class="section-title">AI 班级整体状态研判</div>
+      <div class="page-head">
+        <img class="ph-icon" src="img/herb.png" alt="">
+        <div class="ph-text">
+          <h2>AI 班级整体状态研判</h2>
+          <p>只看全班汇总数据，不会传出任何一个学生的姓名</p>
+        </div>
+      </div>
       <div class="card" id="classAIBody">
-        <div class="sub">仅使用聚合数据，不含学生姓名</div>
-        <div style="margin-top:12px"><button class="btn" id="btnClassAI">生成班级研判</button></div>
+        <div><button class="btn" id="btnClassAI">生成班级研判</button></div>
       </div>
     </section>
 
     <!-- ============ 班主任：数据收集 ============ -->
     <section class="view" id="view-collect">
-      <div class="section-title">数据收集与回收</div>
-      <div class="grid g4" id="collectMetrics"></div>
+      <div class="page-head">
+        <img class="ph-icon" src="img/handshake.png" alt="">
+        <div class="ph-text">
+          <h2>数据收集与回收</h2>
+          <p>看看还有谁没交、哪些答卷可能需要当面再确认一次</p>
+        </div>
+      </div>
+      <div id="collectMetrics"></div>
 
-      <div class="grid g2" style="margin-top:16px">
+      <div class="grid g2 mt">
         <div class="card">
           <h3>未提交名单</h3>
           
@@ -119,42 +136,46 @@
         </div>
       </div>
 
-      <div class="card" style="margin-top:16px">
+      <div class="card mt">
         <h3>提交明细</h3>
-        
         <div id="collectDetail" class="tbl-scroll"></div>
       </div>
     </section>
 
     <!-- ============ 班主任：行动台账 ============ -->
     <section class="view" id="view-actions">
-      <div class="section-title">行动台账 · 数据 → AI → 动作 → 执行
+      <div class="page-head">
+        <img class="ph-icon" src="img/seedling.png" alt="">
+        <div class="ph-text">
+          <h2>行动台账</h2>
+          <p>AI 给了建议之后，真正重要的是有没有人去做——这里记着每一件事的进展</p>
+        </div>
         <button class="btn ghost sm" id="btnOpenAct" style="margin-left:auto;font-weight:500">+ 手工录入</button>
       </div>
 
       <div class="pri-filter" id="actFilter"></div>
 
-      <div class="card sug-card" style="margin-top:12px">
-        <h3>今日建议<span class="sug-cnt" id="actSuggestCnt"></span></h3>
-        
+      <div class="card sug-card mt">
+        <h3>今天可以做的<span class="sug-cnt" id="actSuggestCnt"></span></h3>
+        <div class="sub">根据班上现在的情况推出来的，加入台账后就会出现在下面的待执行里</div>
         <div id="actSuggest" class="scroll-box"></div>
       </div>
 
-      <div class="grid g3" style="margin-top:12px">
+      <div class="grid g3 mt">
         <div class="card act-col"><h3>待执行</h3><div class="sub" id="actTodoCnt">—</div><div id="actTodo" class="act-scroll"></div></div>
         <div class="card act-col"><h3>已逾期</h3><div class="sub" id="actOverCnt">—</div><div id="actOverdue" class="act-scroll"></div></div>
         <div class="card act-col"><h3>已完成<button class="btn ghost sm act-clear" id="btnRestoreDone" style="display:none" title="恢复已归档的已完成任务">恢复</button><button class="btn ghost sm act-clear" id="btnClearDone" title="清空已完成栏，历史统计不受影响">清空</button></h3><div class="sub" id="actDoneCnt">—</div><div id="actDone" class="act-scroll"></div></div>
       </div>
 
-      <div class="grid g2" style="margin-top:16px">
+      <div class="grid g2 mt">
         <div class="card">
           <h3>优先级分布</h3>
-          
+          <div class="sub">看看重要的那些事，有没有被更急的事一直往后挤</div>
           <div id="actPriStat"></div>
         </div>
         <div class="card">
           <h3>来源执行率</h3>
-          
+          <div class="sub">AI 提的建议，实际被执行了多少</div>
           <div id="actSourceStat"></div>
         </div>
       </div>
@@ -162,7 +183,13 @@
 
     <!-- ============ 班主任：学生名单（只给支持动作，不给机制） ============ -->
     <section class="view" id="view-students">
-      <div class="section-title" id="stuTitle">学生名单与风险状态（真实提交）</div>
+      <div class="page-head">
+        <img class="ph-icon" src="img/handshake.png" alt="">
+        <div class="ph-text">
+          <h2 id="stuTitle">学生名单与风险状态</h2>
+          <p>每一位学生最近一次提交的情况，点「操作」可以拿到具体的支持动作</p>
+        </div>
+      </div>
       <div class="card" style="padding:6px 0">
         <div class="tbl-scroll">
           <table class="tb">
@@ -174,13 +201,20 @@
           </table>
         </div>
       </div>
-      <div class="notice info" style="margin-top:12px">
+      <div class="notice info mt">
         <div>本表按学生最近一次提交实时聚合；学生每次提交问卷或日常记录后自动刷新。点击「操作」按<b>班主任视角</b>生成支持动作——不包含心理教师的专业研判内容。</div>
       </div>
     </section>
 
     <!-- ============ 班主任：班级报告 ============ -->
     <section class="view" id="view-report">
+      <div class="page-head">
+        <img class="ph-icon" src="img/moon.png" alt="">
+        <div class="ph-text">
+          <h2>班级心理健康报告</h2>
+          <p>按周期汇总全班情况，可导出 Word / Excel / PDF</p>
+        </div>
+      </div>
       <div id="classReport"></div>
       <!-- 学生个体报告面板（点击学生行进入，不占主页面） -->
       <div id="stuReportHost" class="stu-rep-host"></div>
@@ -189,8 +223,14 @@
     <!-- ============ 心理教师：预警队列 ============ -->
     <section class="view" id="view-queue">
       <div class="role-banner" id="queueBanner"></div>
-      <div class="grid g4" id="queueMetrics"></div>
-      <div class="section-title">按风险与时限排序的预警队列</div>
+      <div class="page-head">
+        <img class="ph-icon" src="img/heart.png" alt="">
+        <div class="ph-text">
+          <h2>预警队列</h2>
+          <p>按风险高低和时间紧迫程度排好了，从最上面的开始接手</p>
+        </div>
+      </div>
+      <div id="queueMetrics"></div>
       <div class="card" style="padding:6px 0">
         <div class="tbl-scroll">
           <table class="tb">
@@ -202,55 +242,76 @@
           </table>
         </div>
       </div>
-      <div class="notice info" style="margin-top:12px">
-        <div>红色个案 24 小时内须完成首次接触，黄色个案本周内完成。接手状态会同步回班主任端（班主任只看到「心理教师已接手」徽标，看不到辅导内容）。</div>
+      <div class="warm-note mt">
+        <b>关于时限</b>：红色个案 24 小时内完成首次接触，黄色个案本周内完成。
+        接手后班主任那边只会看到一个「已接手」的标记，具体聊了什么不会被看到。
       </div>
     </section>
 
     <!-- ============ 心理教师：个案研判 ============ -->
     <section class="view" id="view-plan">
-      <div class="section-title">个案专业研判</div>
+      <div class="page-head">
+        <img class="ph-icon" src="img/herb.png" alt="">
+        <div class="ph-text">
+          <h2>个案专业研判</h2>
+          <p>从预警队列里选一名学生，生成个案概念化、辅导技术与会谈节奏</p>
+        </div>
+      </div>
       <div class="card" id="planBody">
-        <div class="sub">请从「预警队列」中选择一名学生，生成专业研判（个案概念化 / 机制 / 辅导技术 / 会谈计划 / 风险研判与转介）。</div>
+        <div class="sub">还没有选择学生。请先到「预警队列」，点某一位学生的「研判」。</div>
       </div>
     </section>
 
     <!-- ============ 心理教师：辅导档案 ============ -->
     <section class="view" id="view-cases">
-      <div class="section-title">辅导档案 · 个案跟踪</div>
-      <div class="card">
-        
+      <div class="page-head">
+        <img class="ph-icon" src="img/moon.png" alt="">
+        <div class="ph-text">
+          <h2>辅导档案</h2>
+          <p>每个已接手的孩子一张卡片，记着状态、会谈次数和下次随访时间</p>
+        </div>
       </div>
-      <div class="grid g2 scroll-box tall" id="caseGrid" style="margin-top:16px"></div>
+      <div class="grid g2 scroll-box tall mt" id="caseGrid"></div>
     </section>
 
     <!-- ============ 心理教师：心理态势 ============ -->
     <section class="view" id="view-climate">
-      <div class="section-title">全校心理态势（群体画像，非管理动作）</div>
+      <div class="page-head">
+        <img class="ph-icon" src="img/sun.png" alt="">
+        <div class="ph-text">
+          <h2>全校心理态势</h2>
+          <p>从整体看群体特征与发展性课程建议，不涉及具体班级管理动作</p>
+        </div>
+      </div>
       <div class="card" id="climateBody">
-        
-        <div style="margin-top:12px"><button class="btn" id="btnClimate">生成心理态势画像</button></div>
+        <div><button class="btn" id="btnClimate">生成心理态势画像</button></div>
       </div>
     </section>
 
     <!-- ============ 心理教师：转介与危机 ============ -->
     <section class="view" id="view-referral">
-      <div class="section-title">转介与危机流程</div>
+      <div class="page-head">
+        <img class="ph-icon" src="img/heart.png" alt="">
+        <div class="ph-text">
+          <h2>转介与危机流程</h2>
+          <p>真遇到高危情况时，按顺序把这几步走完——慌乱时最容易漏掉关键一步</p>
+        </div>
+      </div>
       <div class="card">
         <h3>危机处理流程清单</h3>
         <div class="sub">按顺序逐项确认，勾选状态保存在本地，刷新不丢失</div>
         <div id="crisisList" class="scroll-box"></div>
       </div>
 
-      <div class="card" style="margin-top:16px">
+      <div class="card mt">
         <h3>转介单生成</h3>
         
-        <div class="grid g3" style="margin-top:6px">
+        <div class="grid g3">
           <select id="refStu"></select>
           <input type="text" id="refOrg" placeholder="建议转介机构（默认县级未成年人心理健康辅导中心）">
           <input type="date" id="refDate">
         </div>
-        <div style="margin-top:12px">
+        <div class="mt">
           <button class="btn" id="btnRefGen">生成转介单</button>
           <button class="btn ghost" id="btnRefPrint" style="margin-left:8px">下载 PDF</button>
         </div>
@@ -260,8 +321,12 @@
 
     <!-- ============ 心理教师：专业工具箱 ============ -->
     <section class="view" id="view-toolbox">
-      <div class="section-title">心理学知识库检索
-        <span class="kb-count" id="kbCount"></span>
+      <div class="page-head">
+        <img class="ph-icon" src="img/herb.png" alt="">
+        <div class="ph-text">
+          <h2>专业工具箱<span class="kb-count" id="kbCount"></span></h2>
+          <p>查理论、查量表、查常见议题——本地收录，断网也能用</p>
+        </div>
       </div>
       <div class="card">
         
@@ -284,11 +349,17 @@
     </section>
 
     <!-- ============ 学生：心理问卷 ============ -->
-    <section class="view" id="view-questionnaire">
+    <section class="view" id="view-questionnaire" data-tone="warm">
       <!-- 教师派发的单量表任务（有才显示） -->
       <div id="stuScaleTasks"></div>
 
-      <div class="section-title">心理健康筛查（约 4 分钟 · 12 题）</div>
+      <div class="page-head">
+        <img class="ph-icon" src="img/seedling.png" alt="">
+        <div class="ph-text">
+          <h2>最近过得怎么样？</h2>
+          <p>12 个问题，大约 4 分钟。没有对错，按最近两周的真实感受选就好</p>
+        </div>
+      </div>
       <div class="card">
         <h3 id="qTitle"></h3>
         <div class="sub" id="qNote"></div>
@@ -300,22 +371,30 @@
         </div>
       </div>
       <div id="qResult"></div>
-      <div class="notice info" style="margin-top:14px">
-        <div>问卷依据 PHQ-9（抑郁）与 GAD-7（焦虑）两个国际通用量表改编。最后 3 题是<b>安全筛查</b>，单独判定、不并入总分：偶发的消极念头与「有具体计划」会区别对待，不会一题定生死。作答会实时同步给班主任与心理教师，以便及时提供帮助。</div>
+      <div class="notice info mt">
+        <div>这份问卷参考了 PHQ-9 和 GAD-7 两个国际通用量表。最后 3 题问的是安全方面的情况，
+          <b>单独看、不算进总分</b>——偶尔闪过的消极念头，和「已经想清楚要怎么做」是两回事，我们不会混为一谈。
+          你的作答会同步给班主任和心理老师，这样他们能及时帮上忙。</div>
       </div>
     </section>
 
     <!-- ============ 学生：日常记录 ============ -->
-    <section class="view" id="view-record">
-      <div class="section-title">多模态日常记录</div>
+    <section class="view" id="view-record" data-tone="warm">
+      <div class="page-head">
+        <img class="ph-icon" src="img/herb.png" alt="">
+        <div class="ph-text">
+          <h2>说说今天</h2>
+          <p>写几句就好，不用讲究文采。想到什么写什么，老师会看到</p>
+        </div>
+      </div>
       <div class="grid g2">
         <div class="card">
           <h3>快速记录</h3>
           <div class="sub">支持文字速记与课堂行为标签，提交后实时同步至教师后台</div>
           <textarea class="rec" id="recText" placeholder="例如：最近总睡不好，上课走神，也不太想和同学说话……"></textarea>
-          <div class="sub" style="margin-top:12px">状态标签（可多选）</div>
+          <div class="sub mt">状态标签（可多选）</div>
           <div class="chips" id="tagChips"></div>
-          <div style="margin-top:14px"><button class="btn" id="btnSubmitR">提交记录并分析</button></div>
+          <div class="mt"><button class="btn" id="btnSubmitR">提交记录并分析</button></div>
         </div>
         <div class="card">
           <h3>AI 引擎工作流</h3>
@@ -333,12 +412,15 @@
     </section>
 
     <!-- ============ 学生：我的结果 ============ -->
-    <section class="view" id="view-mine">
-      <div class="section-title">我的记录与自助建议</div>
-      <div class="card">
-        <div class="sub" style="margin-bottom:0">这里只显示你自己的提交记录与 AI 给出的自助建议，其他同学看不到你的内容。</div>
+    <section class="view" id="view-mine" data-tone="warm">
+      <div class="page-head">
+        <img class="ph-icon" src="img/heart.png" alt="">
+        <div class="ph-text">
+          <h2>我的记录</h2>
+          <p>这里只有你自己能看到。别的同学不会看到你写了什么</p>
+        </div>
       </div>
-      <div id="mineBody" class="scroll-box tall" style="margin-top:14px"></div>
+      <div id="mineBody" class="scroll-box tall mt"></div>
     </section>
 
   </main>

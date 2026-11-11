@@ -58,7 +58,8 @@ function boot() {
     .filter(n => n.nodeType === 3 || (n.nodeType === 1 && !/^(BUTTON|SPAN)$/.test(n.tagName)))
     .map(n => n.textContent).join('').replace(/\s+/g,'');
   const cardHeads = [...view.querySelectorAll('.card h3')].map(headText);
-  ok('台账页首个卡片是今日建议', /^今日建议/.test(cardHeads[0] || ''), cardHeads.join(' | '));
+  /* 文案已从「今日建议」改为「今天可以做的」（去掉工具化口吻） */
+  ok('台账页首个卡片是建议区', /^今天可以做的/.test(cardHeads[0] || ''), cardHeads.join(' | '));
   ok('建议区之后是待执行三栏',
      cardHeads[1] === '待执行' && cardHeads[2] === '已逾期' && cardHeads[3] === '已完成',
      cardHeads.join(' | '));

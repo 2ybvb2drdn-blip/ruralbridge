@@ -845,3 +845,114 @@ footer.site .disc { max-width:760px; margin:0 auto; padding:10px 14px; backgroun
 
 /* 学生列：姓名为主，账号作副行，省一列宽度 */
 .stu-uid { font-size:11.5px; color:var(--muted); font-weight:400; margin-top:1px; }
+
+/* ============================================================
+ * 温馨化改造（2026-11-11）
+ * 目的：从"冷色工具"改为"有温度的陪伴感"，但不牺牲可读性。
+ * 三条纪律：
+ *   1. 插图只用静态 PNG，全部本地存放（断网可用）——
+ *      不引 CDN、不引字体、不做动画，守住"低端机弱网友好"的原则
+ *   2. 暖色只做点缀（标题小图标、页头装饰、空状态），
+ *      正文与数据区仍保持中性，避免干扰对风险等级的判断
+ *   3. 间距改为统一的纵向节奏，不再散落 margin-top 内联样式
+ * ============================================================ */
+
+/* ---------------- 纵向节奏：替代散落的内联 margin ---------------- */
+/* 原来 HTML 里有 20 处 style="margin-top:12px/14px/16px"，
+   同一页面出现三四种间距值，视觉上忽紧忽松。
+   统一成两个语义类：.mt（块间距）/ .mt-lg（区块间距） */
+.mt { margin-top: 16px; }
+.mt-lg { margin-top: 26px; }
+.stack > * + * { margin-top: 16px; }
+
+/* ---------------- 页头：插图 + 标题 + 一句话说明 ---------------- */
+.page-head { display:flex; align-items:center; gap:14px; margin-bottom:6px; }
+.page-head .ph-icon {
+  width:44px; height:44px; flex:none; object-fit:contain;
+  /* 插图本身带白边，深底上直接贴会很脏，加一圈柔和底衬 */
+  filter:drop-shadow(0 2px 10px rgba(0,0,0,.35));
+}
+.page-head .ph-text { min-width:0; }
+.page-head h2 {
+  margin:0; font-size:19px; font-weight:600; color:var(--ink);
+  font-family:var(--font-serif); letter-spacing:.03em; line-height:1.35;
+}
+.page-head p {
+  margin:3px 0 0; font-size:12.5px; color:var(--muted); line-height:1.6;
+}
+
+/* 登录页插图：门厅气质，比纯文字卡片更容易让人放松 */
+.login-art {
+  display:block; width:72px; height:72px; margin:0 auto 16px;
+  object-fit:contain;
+  filter:drop-shadow(0 6px 20px rgba(95,179,166,.22));
+}
+.login-warm {
+  margin:14px 0 0; padding:11px 14px; border-radius:var(--r-sm);
+  background:rgba(95,179,166,.07); border-left:2px solid var(--brand);
+  font-size:12.5px; color:var(--muted); line-height:1.7;
+}
+.login-warm b { color:var(--brand-2); font-weight:600; }
+
+/* 顶栏左侧的小图标：44px 太大，这里用小一号 */
+.topbar .t-left img { width:22px; height:22px; object-fit:contain; flex:none; }
+
+/* 空状态：配一张小插图，比纯文字"暂无数据"更柔和 */
+.empty { display:flex; flex-direction:column; align-items:center; gap:8px; }
+.empty img { width:38px; height:38px; object-fit:contain; opacity:.75; }
+.empty span { display:block; }
+
+/* 侧边栏/卡片标题前的小图标 */
+.card h3 img, .section-title img {
+  width:17px; height:17px; object-fit:contain; vertical-align:-3px; margin-right:7px;
+}
+
+/* ---------------- 暖色点缀（只用于标题与提示，不用于数据） ---------------- */
+:root {
+  --warm:#e8b06a;          /* 暖橙：标题装饰、关怀提示 */
+  --warm-dim:rgba(232,176,106,.12);
+  --warm-bd:rgba(232,176,106,.28);
+}
+.warm-note {
+  padding:12px 14px; border-radius:var(--r-sm);
+  background:var(--warm-dim); border-left:2px solid var(--warm);
+  font-size:12.5px; color:var(--muted); line-height:1.75;
+}
+.warm-note b { color:var(--warm); font-weight:600; }
+
+/* 学生端：给学生的页面用更暖的强调，与教师端的中性形成语气差 */
+.view[data-tone="warm"] .page-head h2 { color:#f0c893; }
+.view[data-tone="warm"] .section-title { border-bottom-color:var(--warm-bd); }
+
+/* ---------------- 页面容器统一宽度与留白 ---------------- */
+/* 原来各 section 直接平铺，区块之间靠内联 margin 撑开。
+   这里给 .view 内部建立统一节奏，并让首个元素不留上边距。 */
+.view > *:first-child { margin-top:0; }
+.view > .section-title { margin-top:30px; }
+.view > .section-title:first-child { margin-top:0; }
+
+/* 表格与图例的间距一致性 */
+.trend-legend { margin-top:10px; }
+.tbl-scroll { margin-top:10px; }
+
+/* 移动端：页头图片缩小，避免挤占标题行 */
+@media (max-width:620px){
+  .page-head { gap:10px; }
+  .page-head .ph-icon { width:36px; height:36px; }
+  .page-head h2 { font-size:17px; }
+}
+
+/* 登录页品牌副标题（与 .brand-sub 区分：这个是紧贴品牌名的小字） */
+.brand-sub-inline {
+  font-size:11.5px; color:var(--faint); margin-top:2px; letter-spacing:.04em;
+}
+/* .brand-row 现在没有左侧 mark 了，改为左对齐即可 */
+.login-card .brand-row { justify-content:flex-start; margin-bottom:4px; }
+
+/* 登录页测试账号说明 */
+.hint-note { margin-top:10px; font-size:12px; color:var(--muted); line-height:1.7; }
+.hint-note b { color:var(--ink); }
+
+/* 学生端语气：整体留白更宽松，标题更暖 */
+.view[data-tone="warm"] .page-head { margin-bottom:10px; }
+.view[data-tone="warm"] .card { border-top-color:rgba(232,176,106,.22); }
